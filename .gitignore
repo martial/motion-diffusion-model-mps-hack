@@ -1,3 +1,12 @@
+# Custom from Grant
+*.ipynb
+*.blend
+runs/
+dataset/HumanML3D
+dataset/uestc
+body_models/smpl
+.DS_STORE
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

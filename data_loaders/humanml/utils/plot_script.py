@@ -92,6 +92,10 @@ def plot_3d_motion(save_path, kinematic_tree, joints, title, dataset, figsize=(3
 
     def update(index):
         #         print(index)
+        #HACK
+        # See https://github.com/GuyTevet/motion-diffusion-model/issues/6
+        #ax.clear()
+        # One option is to just downgrade matplot lib to 3.1, but the above works better
         ax.lines = []
         ax.collections = []
         ax.view_init(elev=120, azim=-90)

@@ -33,7 +33,7 @@ def get_named_beta_schedule(schedule_name, num_diffusion_timesteps, scale_betas=
         beta_start = scale * 0.0001
         beta_end = scale * 0.02
         return np.linspace(
-            beta_start, beta_end, num_diffusion_timesteps, dtype=np.float64
+            beta_start, beta_end, num_diffusion_timesteps, dtype=np.float32 #HACK
         )
     elif schedule_name == "cosine":
         return betas_for_alpha_bar(
@@ -158,7 +158,7 @@ class GaussianDiffusion:
             assert self.loss_type == LossType.MSE, 'Geometric losses are supported by MSE loss type only!'
 
         # Use float64 for accuracy.
-        betas = np.array(betas, dtype=np.float64)
+        betas = np.array(betas, dtype=np.float32) #HACK
         self.betas = betas
         assert len(betas.shape) == 1, "betas must be 1-D"
         assert (betas > 0).all() and (betas <= 1).all()
@@ -1606,7 +1606,10 @@ def _extract_into_tensor(arr, timesteps, broadcast_shape):
                             dimension equal to the length of timesteps.
     :return: a tensor of shape [batch_size, 1, ...] where the shape has K dims.
     """
-    res = th.from_numpy(arr).to(device=timesteps.device)[timesteps].float()
+    #HACK
+    if arr.dtype == np.float64:
+        arr = arr.astype(np.float32)
+    res = th.from_numpy(arr).to(device=timesteps.device)[timesteps].float() #HACK
     while len(res.shape) < len(broadcast_shape):
         res = res[..., None]
     return res.expand(broadcast_shape)

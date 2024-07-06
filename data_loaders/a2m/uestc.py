@@ -161,9 +161,9 @@ class UESTC(Dataset):
                 self._test.append(index)
             else:
                 raise ValueError("This subject doesn't belong to any set.")
-
-            # if index > 200:
-            #     break
+            #HACK UNCOMMENTED
+            if index > 200:
+                break
 
         # Select only sequences which have a minimum number of frames
         if self.num_frames > 0:

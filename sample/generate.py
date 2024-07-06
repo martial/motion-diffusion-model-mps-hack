@@ -80,6 +80,7 @@ def main():
     if args.guidance_param != 1:
         model = ClassifierFreeSampleModel(model)   # wrapping model with the classifier-free sampler
     model.to(dist_util.dev())
+    print("Loaded model to device: ", str(dist_util.dev()))
     model.eval()  # disable random masking
 
     if is_using_data:

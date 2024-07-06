@@ -46,9 +46,11 @@ def dev():
     Get the device to use for torch.distributed.
     """
     global used_device
-    if th.cuda.is_available() and used_device>=0:
-        return th.device(f"cuda:{used_device}")
-    return th.device("cpu")
+    #HACK
+    return th.device('mps')
+    # if th.cuda.is_available() and used_device>=0:
+    #     return th.device(f"cuda:{used_device}")
+    # return th.device("cpu")
 
 
 def load_state_dict(path, **kwargs):

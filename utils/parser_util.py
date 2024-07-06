@@ -202,6 +202,8 @@ def add_evaluation_options(parser):
 
 
 def get_cond_mode(args):
+    #HACK temp-probably can delete
+    return 'text'
     if args.unconstrained:
         cond_mode = 'no_cond'
     elif args.dataset in ['kit', 'humanml']:
