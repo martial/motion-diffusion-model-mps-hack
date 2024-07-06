@@ -1,3 +1,21 @@
+# Separate install instructions for MPS + Torch 2.3+ + Python 3.11
+
+Run each of these commands line by line. It's possible that eventually torch nightly will deprecate more stuff, but by that point just use the regular torch instead. `jupyter` is unnecessary, but I use it so it's there so you can reproduce my environment.
+
+My version of chumpy just changes two lines of code to make it work with modern numpy and inspect. It's very possible it won't be suitable for training as I didn't edit much.
+
+```bash
+conda create -n motiondm python=3.11
+conda activate motiondm
+pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cpu
+pip install jupyter
+pip install smplx
+pip install git+https://github.com/Grant-CP/chumpy-py311.git
+pip install matplotlib==3.1.3
+pip install git+https://github.com/openai/CLIP.git
+pip install spacy
+```
+
 # MDM: Human Motion Diffusion Model
 
 
