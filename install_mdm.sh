@@ -95,13 +95,13 @@ for package in "python@3.10" "wget" "unzip"; do
 done
 
 # Install pip if not already installed
-if ! command -v pip3 &> /dev/null; then
+if ! command -v pip &> /dev/null; then
     echo "Installing pip..."
     curl -sS https://bootstrap.pypa.io/get-pip.py | python3
 fi
 
 # Ensure pip is up to date
-python3 -m pip install --upgrade pip
+pip install --upgrade pip
 
 
 # Install UV if not already installed
@@ -141,6 +141,8 @@ if [ -d ".venv" ]; then
         rm -rf .venv
     fi
 fi
+
+uv pip install pip
 
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
