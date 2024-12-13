@@ -24,10 +24,10 @@ We provide an automated installation script that:
 
 ```bash
 # Basic installation
-./install_mdm.sh
+sh install_mdm.sh
 
 # With evaluation dependencies  
-./install_mdm.sh --with-eval
+sh nstall_mdm.sh --with-eval
 ```
 
 ### Running the Server
@@ -60,46 +60,6 @@ http://localhost:3000
 The official PyTorch implementation of the paper [**"Human Motion Diffusion Model"**](https://arxiv.org/abs/2209.14916).
 
 Please visit our [**webpage**](https://guytevet.github.io/mdm-page/) for more details.
-
-## Quick Start
-
-### Installation
-
-We provide an automated installation script that:
-- Creates a Python virtual environment
-- Installs all dependencies
-- Downloads the pre-trained model
-- Sets up evaluation dependencies (optional)
-- Includes optimizations for Apple Silicon processors
-
-```bash
-# Basic installation
-sh install_mdm.sh
-
-# With evaluation dependencies
-sh install_mdm.sh --with-eval
-```
-
-### Running the Server
-
-Start the development server with:
-
-```bash
-sh start.sh
-```
-
-This will:
-- Activate the virtual environment
-- Set required environment variables
-- Start Flask on port 3000
-- Initialize the backend interface for processing requests
-
-Once running, open your browser and navigate to:
-```
-http://localhost:3000
-```
-
-This will load the web interface where you can interact with the model.
 
 ![teaser](https://github.com/GuyTevet/mdm-page/raw/main/static/figures/github.gif)
 
