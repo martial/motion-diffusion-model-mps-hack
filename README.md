@@ -1,3 +1,7 @@
+# run flask
+
+FLASK_DEBUG=1 FLASK_APP=backend/app.py python -m flask run --port 3000
+
 # Separate install instructions for MPS + Torch 2.3+ + Python 3.11
 
 Run each of these commands line by line. It's possible that eventually torch nightly will deprecate more stuff, but by that point just use the regular torch instead. `jupyter` is unnecessary, but I use it so it's there so you can reproduce my environment.

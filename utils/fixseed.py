@@ -9,7 +9,7 @@ def fixseed(seed):
     np.random.seed(seed)
     torch.manual_seed(seed)
 
-
+torch.backends.cudnn.benchmark = False
 # SEED = 10
 # EVALSEED = 0
 # # Provoc warning: not fully functionnal yet

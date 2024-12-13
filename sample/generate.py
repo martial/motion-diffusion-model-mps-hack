@@ -22,6 +22,24 @@ from data_loaders.tensors import collate
 def main():
     args = generate_args()
     fixseed(args.seed)
+    
+    # Add parameter logging
+    print('='*50)
+    print('Running generation with parameters:')
+    print(f'Seed: {args.seed}')
+    print(f'Model path: {args.model_path}')
+    print(f'Guidance param: {args.guidance_param}')
+    print(f'Motion length: {args.motion_length}')
+    if args.text_prompt:
+        print(f'Text prompt: {args.text_prompt}')
+    elif args.input_text:
+        print(f'Input text file: {args.input_text}')
+    elif args.action_name:
+        print(f'Action name: {args.action_name}')
+    elif args.action_file:
+        print(f'Action file: {args.action_file}')
+    print('='*50)
+    
     out_path = args.output_dir
     name = os.path.basename(os.path.dirname(args.model_path))
     niter = os.path.basename(args.model_path).replace('model', '').replace('.pt', '')

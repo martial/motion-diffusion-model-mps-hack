@@ -96,10 +96,9 @@ def plot_3d_motion(save_path, kinematic_tree, joints, title, dataset, figsize=(3
         # See https://github.com/GuyTevet/motion-diffusion-model/issues/6
         #ax.clear()
         # One option is to just downgrade matplot lib to 3.1, but the above works better
-        ax.lines = []
-        ax.collections = []
+        ax.clear()
         ax.view_init(elev=120, azim=-90)
-        ax.dist = 7.5
+        ax._dist = 7.5
         #         ax =
         plot_xzPlane(MINS[0] - trajec[index, 0], MAXS[0] - trajec[index, 0], 0, MINS[2] - trajec[index, 1],
                      MAXS[2] - trajec[index, 1])
