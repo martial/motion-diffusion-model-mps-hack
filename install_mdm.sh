@@ -24,15 +24,11 @@ check_disk_space() {
     fi
 }
 
-
-
-
 # Set up trap for cleanup
 trap cleanup EXIT
 
 # Initial checks
 echo "Check for Command Line Tools"
-
 
 # Check for Command Line Tools
 if ! command -v xcode-select &> /dev/null || ! xcode-select -p &> /dev/null; then
@@ -44,6 +40,7 @@ if ! command -v xcode-select &> /dev/null || ! xcode-select -p &> /dev/null; the
         sleep 5
     done
 fi
+
 echo "Check for Homebrew"
 
 # Check for Homebrew and install if missing
@@ -57,22 +54,30 @@ if ! command -v brew &> /dev/null; then
     fi
 fi
 
-echo "Check for Python 3.10"
+echo "Check for Python 3.11"
 
-# Install required system packages
-for package in "python@3.10" "wget" "unzip"; do
-    if ! brew list $package &>/dev/null; then
-        echo "Installing $package..."
-        brew install $package
-    fi
-done
+# Unlink any other Python versions first
+brew unlink python@3.12 &>/dev/null || true
+brew unlink python@3.10 &>/dev/null || true
+
+# Install Python 3.11 specifically
+if ! brew list python@3.11 &>/dev/null; then
+    echo "Installing Python 3.11..."
+    brew install python@3.11
+fi
+
+# Force link Python 3.11
+brew link --force python@3.11
+
+# Ensure we're using Python 3.11
+PYTHON_CMD=$(brew --prefix python@3.11)/bin/python3.11
+echo "Using Python: $($PYTHON_CMD --version)"
 
 echo "Check for pip"
-# Install pip if not already installed
-if ! command -v pip &> /dev/null; then
-    echo "Installing pip..."
-    curl -sS https://bootstrap.pypa.io/get-pip.py | python3
-fi
+# Ensure pip is installed and updated
+echo "Installing/upgrading pip..."
+curl -sS https://bootstrap.pypa.io/get-pip.py | $PYTHON_CMD
+$PYTHON_CMD -m pip install --upgrade pip
 
 echo "Check for virtual environment"
 # Ask about rebuilding virtual environment
@@ -86,15 +91,29 @@ fi
 
 echo "Check for virtual environment"
 if [ ! -d ".venv" ]; then
-    echo "Creating virtual environment..."
-    python3 -m venv .venv
+    echo "Creating virtual environment with Python 3.11..."
+    $PYTHON_CMD -m venv .venv
     echo "Virtual environment created. Activating..."
     source .venv/bin/activate
     
-    # Upgrade pip in the virtual environment
-    python3 -m pip install --upgrade pip
-    
+    # Install essential build tools first
+    echo "Installing build dependencies..."
+    python -m pip install --upgrade pip
+    python -m pip install setuptools wheel build numpy cython
+
+    echo "Installing chumpy-py311..."
+    # Create a temporary directory for chumpy installation
+    temp_dir=$(mktemp -d)
+    git clone https://github.com/Grant-CP/chumpy-py311.git "$temp_dir"
+    cd "$temp_dir"
+    # Install in development mode with required build dependencies
+    python setup.py develop
+    cd -
+    rm -rf "$temp_dir"
+
     echo "Installing dependencies from requirements.txt..."
+    
+    # Now install the rest of the requirements
     pip install -r requirements.txt
     
     echo "Installing PyTorch..."
@@ -162,8 +181,6 @@ else
     echo "Skipping Anthropic API key setup. You can set it later by adding ANTHROPIC_API_KEY to .env file"
 fi
 
-
-
 # Installation complete message
 echo "Installation complete! The virtual environment is activated."
 
@@ -179,7 +196,6 @@ echo "You can now run the server with: ./start.sh"
 
 # Make start script executable
 chmod +x start.sh
-
 
 # Ask user if they want to start the server
 read -p "Do you want to start the server now? (y/N): " start_server
