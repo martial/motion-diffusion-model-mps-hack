@@ -98,9 +98,29 @@ done
 python3 -m pip install --upgrade pip
 
 # Install UV if not already installed
+# Install UV if not already installed
 if ! command -v uv &> /dev/null; then
     echo "Installing UV..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
+    
+    # Add UV to PATH temporarily for this session
+    export PATH="$HOME/.local/bin:$PATH"
+    
+    # Add to appropriate shell config file for future sessions
+    shell_name=$(basename "$SHELL")
+    case "$shell_name" in
+        "bash")
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+            ;;
+        "zsh")
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+            ;;
+        "fish")
+            echo 'set -gx PATH "$HOME/.local/bin" $PATH' >> ~/.config/fish/config.fish
+            ;;
+    esac
+    
+    echo "UV path has been added to shell config. It will be permanent after shell restart."
 fi
 
 if [ ! -d ".venv" ]; then
