@@ -99,12 +99,15 @@ if ! command -v uv &> /dev/null; then
     curl -LsSf https://astral.sh/uv/install.sh | sh
 fi
 
-# Create virtual environment only if it doesn't exist
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
     uv venv
     echo "Virtual environment created. Activating..."
     source .venv/bin/activate
+    
+    # Ensure pip is installed in the virtual environment
+    echo "Ensuring pip is installed in virtual environment..."
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3
     
     echo "Installing dependencies from requirements.txt..."
     uv pip install -r requirements.txt
