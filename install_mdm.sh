@@ -87,12 +87,53 @@ if ! command -v brew &> /dev/null; then
 fi
 
 # Install required system packages
+echo "Installing Python 3.10 and other requirements..."
 for package in "python@3.10" "wget" "unzip"; do
     if ! brew list $package &>/dev/null; then
         echo "Installing $package..."
         brew install $package
     fi
 done
+
+# Add Homebrew Python to PATH and create necessary symlinks
+if [[ $(uname -m) == 'arm64' ]]; then
+    # For Apple Silicon
+    BREW_PREFIX="/opt/homebrew"
+else
+    # For Intel Macs
+    BREW_PREFIX="/usr/local"
+fi
+
+# Add both Homebrew Python and user's Python bin to PATH
+echo "Adding Python paths..."
+shell_name=$(basename "$SHELL")
+PYTHON_USER_BIN="$HOME/Library/Python/3.10/bin"
+case "$shell_name" in
+    "bash")
+        echo "export PATH=\"${BREW_PREFIX}/opt/python@3.10/bin:${PYTHON_USER_BIN}:$PATH\"" >> ~/.bashrc
+        source ~/.bashrc
+        ;;
+    "zsh")
+        echo "export PATH=\"${BREW_PREFIX}/opt/python@3.10/bin:${PYTHON_USER_BIN}:$PATH\"" >> ~/.zshrc
+        source ~/.zshrc
+        ;;
+    "fish")
+        echo "fish_add_path ${BREW_PREFIX}/opt/python@3.10/bin ${PYTHON_USER_BIN}" >> ~/.config/fish/config.fish
+        source ~/.config/fish/config.fish
+        ;;
+esac
+
+# Also add to .profile for broader compatibility
+echo "export PATH=\"${BREW_PREFIX}/opt/python@3.10/bin:${PYTHON_USER_BIN}:$PATH\"" >> ~/.profile
+source ~/.profile
+
+# Add to current session's PATH
+export PATH="${BREW_PREFIX}/opt/python@3.10/bin:${PYTHON_USER_BIN}:$PATH"
+
+# Verify Python and pip installation
+echo "Verifying Python installation..."
+python3.10 --version
+pip --version
 
 # Install pip if not already installed
 if ! command -v pip &> /dev/null; then
