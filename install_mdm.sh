@@ -131,6 +131,9 @@ if [ ! -d ".venv" ]; then
     
     echo "Installing dependencies from requirements.txt..."
     uv pip install -r requirements.txt
+
+     uv pip install git+https://github.com/Grant-CP/chumpy-py311.git --no-build-isolation
+
     
     echo "Installing PyTorch..."
     uv pip install --no-deps torch torchvision torchaudio
