@@ -94,10 +94,16 @@ for package in "python@3.10" "wget" "unzip"; do
     fi
 done
 
+# Install pip if not already installed
+if ! command -v pip3 &> /dev/null; then
+    echo "Installing pip..."
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3
+fi
+
 # Ensure pip is up to date
 python3 -m pip install --upgrade pip
 
-# Install UV if not already installed
+
 # Install UV if not already installed
 if ! command -v uv &> /dev/null; then
     echo "Installing UV..."
@@ -119,6 +125,10 @@ if ! command -v uv &> /dev/null; then
             echo 'set -gx PATH "$HOME/.local/bin" $PATH' >> ~/.config/fish/config.fish
             ;;
     esac
+    
+    # Add to .profile for broader compatibility
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
+    source ~/.profile
     
     echo "UV path has been added to shell config. It will be permanent after shell restart."
 fi
