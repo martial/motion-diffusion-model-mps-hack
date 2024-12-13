@@ -1,0 +1,10 @@
+flask==3.0.2
+torch
+numpy<2.0.0
+matplotlib==3.5.0
+smplx
+spacy==3.6.1
+h5py
+git+https://github.com/Grant-CP/chumpy-py311.git
+git+https://github.com/openai/CLIP.git 
+flask-cors     
