@@ -24,45 +24,15 @@ check_disk_space() {
     fi
 }
 
-check_internet() {
-    echo "Checking internet connection..."
-    if ! ping -c 1 google.com &> /dev/null; then
-        echo "No internet connection detected!"
-        exit 1
-    fi
-}
 
-check_architecture() {
-    arch=$(uname -m)
-    if [[ $arch != "x86_64" && $arch != "arm64" ]]; then
-        echo "Unsupported architecture: $arch"
-        exit 1
-    fi
-    
-    if [[ $arch == "arm64" ]]; then
-        echo "Apple Silicon detected - ensuring Rosetta 2 is installed..."
-        if ! pkgutil --pkg-info com.apple.pkg.RosettaUpdateAuto > /dev/null 2>&1; then
-            softwareupdate --install-rosetta --agree-to-license
-        fi
-    fi
-}
 
-check_tmp_permissions() {
-    if ! [ -w /tmp ]; then
-        echo "Error: No write permission in /tmp directory"
-        exit 1
-    fi
-}
 
 # Set up trap for cleanup
 trap cleanup EXIT
 
 # Initial checks
-echo "Running initial system checks..."
-check_internet
-check_architecture
-check_tmp_permissions
-check_disk_space
+echo "Check for Command Line Tools"
+
 
 # Check for Command Line Tools
 if ! command -v xcode-select &> /dev/null || ! xcode-select -p &> /dev/null; then
@@ -74,6 +44,7 @@ if ! command -v xcode-select &> /dev/null || ! xcode-select -p &> /dev/null; the
         sleep 5
     done
 fi
+echo "Check for Homebrew"
 
 # Check for Homebrew and install if missing
 if ! command -v brew &> /dev/null; then
@@ -86,8 +57,9 @@ if ! command -v brew &> /dev/null; then
     fi
 fi
 
+echo "Check for Python 3.10"
+
 # Install required system packages
-echo "Installing Python 3.10 and other requirements..."
 for package in "python@3.10" "wget" "unzip"; do
     if ! brew list $package &>/dev/null; then
         echo "Installing $package..."
@@ -95,56 +67,16 @@ for package in "python@3.10" "wget" "unzip"; do
     fi
 done
 
-# Add Homebrew Python to PATH and create necessary symlinks
-if [[ $(uname -m) == 'arm64' ]]; then
-    # For Apple Silicon
-    BREW_PREFIX="/opt/homebrew"
-else
-    # For Intel Macs
-    BREW_PREFIX="/usr/local"
-fi
-
-# Add both Homebrew Python and user's Python bin to PATH
-echo "Adding Python paths..."
-shell_name=$(basename "$SHELL")
-PYTHON_USER_BIN="$HOME/Library/Python/3.10/bin"
-case "$shell_name" in
-    "bash")
-        echo "export PATH=\"${BREW_PREFIX}/opt/python@3.10/bin:${PYTHON_USER_BIN}:$PATH\"" >> ~/.bashrc
-        source ~/.bashrc
-        ;;
-    "zsh")
-        echo "export PATH=\"${BREW_PREFIX}/opt/python@3.10/bin:${PYTHON_USER_BIN}:$PATH\"" >> ~/.zshrc
-        source ~/.zshrc
-        ;;
-    "fish")
-        echo "fish_add_path ${BREW_PREFIX}/opt/python@3.10/bin ${PYTHON_USER_BIN}" >> ~/.config/fish/config.fish
-        source ~/.config/fish/config.fish
-        ;;
-esac
-
-# Also add to .profile for broader compatibility
-echo "export PATH=\"${BREW_PREFIX}/opt/python@3.10/bin:${PYTHON_USER_BIN}:$PATH\"" >> ~/.profile
-source ~/.profile
-
-# Add to current session's PATH
-export PATH="${BREW_PREFIX}/opt/python@3.10/bin:${PYTHON_USER_BIN}:$PATH"
-
-# Verify Python and pip installation
-echo "Verifying Python installation..."
-python3.10 --version
-pip --version
-
+echo "Check for pip"
 # Install pip if not already installed
 if ! command -v pip &> /dev/null; then
     echo "Installing pip..."
     curl -sS https://bootstrap.pypa.io/get-pip.py | python3
 fi
 
-# Ensure pip is up to date
-pip install --upgrade pip
 
 
+echo "Check for UV"
 # Install UV if not already installed
 if ! command -v uv &> /dev/null; then
     echo "Installing UV..."
@@ -174,6 +106,7 @@ if ! command -v uv &> /dev/null; then
     echo "UV path has been added to shell config. It will be permanent after shell restart."
 fi
 
+echo "Check for virtual environment"
 # Ask about rebuilding virtual environment
 if [ -d ".venv" ]; then
     read -p "Virtual environment already exists. Do you want to rebuild it? (y/N): " rebuild_venv
@@ -183,8 +116,10 @@ if [ -d ".venv" ]; then
     fi
 fi
 
+echo "Install pip with uv"
 uv pip install pip
 
+echo "Check for virtual environment"
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
     uv venv --seed
@@ -208,12 +143,14 @@ else
     source .venv/bin/activate
 fi
 
+echo "Check for spacy model"
 # Only download spacy model if not already installed
 if ! python -c "import spacy; spacy.load('en_core_web_sm')" &> /dev/null; then
     echo "Downloading spaCy model..."
     python -m spacy download en_core_web_sm
 fi
 
+echo "Check for directories"
 # Create directories if they don't exist
 echo "Setting up directories..."
 for dir in "pretrained_models" "dataset" "combined_motions_discovery" "body_models"; do
