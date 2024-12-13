@@ -135,7 +135,7 @@ fi
 
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
-    uv venv
+    uv venv --seed
     echo "Virtual environment created. Activating..."
     source .venv/bin/activate
     
