@@ -1,27 +1,4 @@
-# run flask
-
-FLASK_DEBUG=1 FLASK_APP=backend/app.py python -m flask run --port 3000
-
-# Separate install instructions for MPS + Torch 2.3+ + Python 3.11
-
-Run each of these commands line by line. It's possible that eventually torch nightly will deprecate more stuff, but by that point just use the regular torch instead. `jupyter` is unnecessary, but I use it so it's there so you can reproduce my environment.
-
-My version of chumpy just changes two lines of code to make it work with modern numpy and inspect. It's very possible it won't be suitable for training as I didn't edit much.
-
-```bash
-conda create -n motiondm python=3.11
-conda activate motiondm
-pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cpu
-pip install jupyter
-pip install smplx
-pip install git+https://github.com/Grant-CP/chumpy-py311.git
-pip install matplotlib==3.1.3
-pip install git+https://github.com/openai/CLIP.git
-pip install spacy
-```
-
-# MDM: Human Motion Diffusion Model
-
+# Human Motion Diffusion Model
 
 [![arXiv](https://img.shields.io/badge/arXiv-<2209.14916>-<COLOR>.svg)](https://arxiv.org/abs/2209.14916)
 <a href="https://replicate.com/arielreplicate/motion_diffusion_model"><img src="https://replicate.com/arielreplicate/motion_diffusion_model/badge"></a>
@@ -29,6 +6,37 @@ pip install spacy
 The official PyTorch implementation of the paper [**"Human Motion Diffusion Model"**](https://arxiv.org/abs/2209.14916).
 
 Please visit our [**webpage**](https://guytevet.github.io/mdm-page/) for more details.
+
+## Quick Start
+
+### Installation
+
+We provide an automated installation script that:
+- Creates a Python virtual environment
+- Installs all dependencies
+- Downloads the pre-trained model
+- Sets up evaluation dependencies (optional)
+
+```bash
+# Basic installation
+./install_mdm.sh
+
+# With evaluation dependencies
+./install_mdm.sh --with-eval
+```
+
+### Running the Server
+
+Start the development server with:
+
+```bash
+./start.sh
+```
+
+This will:
+- Activate the virtual environment
+- Set required environment variables
+- Start Flask on port 3000
 
 ![teaser](https://github.com/GuyTevet/mdm-page/raw/main/static/figures/github.gif)
 

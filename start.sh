@@ -1,5 +1,7 @@
 #!/bin/bash
 
+
+
 # Ensure we're in the virtual environment
 source .venv/bin/activate
 

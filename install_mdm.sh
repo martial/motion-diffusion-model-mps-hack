@@ -2,6 +2,10 @@
 
 set -e  # Exit on error
 
+# Pull latest changes
+echo "Pulling latest changes..."
+git pull origin main
+
 # Function definitions
 cleanup() {
     if [ $? -ne 0 ]; then
@@ -190,5 +194,15 @@ if [ -n "$completion_check" ] && ! eval "$completion_check"; then
     echo "$completion_cmd" >> "$completion_file"
 fi
 
+# Installation complete message
 echo "Installation complete! The virtual environment is activated."
+
+# Install and build frontend
+echo "Installing frontend dependencies..."
+cd frontend
+npm install
+echo "Building frontend..."
+npm run build
+cd ..
+
 echo "You can now run the server with: uv run -- python -m sample.server"
