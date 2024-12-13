@@ -24,11 +24,15 @@ check_disk_space() {
     fi
 }
 
+
+
+
 # Set up trap for cleanup
 trap cleanup EXIT
 
 # Initial checks
 echo "Check for Command Line Tools"
+
 
 # Check for Command Line Tools
 if ! command -v xcode-select &> /dev/null || ! xcode-select -p &> /dev/null; then
@@ -40,7 +44,6 @@ if ! command -v xcode-select &> /dev/null || ! xcode-select -p &> /dev/null; the
         sleep 5
     done
 fi
-
 echo "Check for Homebrew"
 
 # Check for Homebrew and install if missing
@@ -54,30 +57,54 @@ if ! command -v brew &> /dev/null; then
     fi
 fi
 
-echo "Check for Python 3.11"
+echo "Check for Python 3.10"
 
-# Unlink any other Python versions first
-brew unlink python@3.12 &>/dev/null || true
-brew unlink python@3.10 &>/dev/null || true
-
-# Install Python 3.11 specifically
-if ! brew list python@3.11 &>/dev/null; then
-    echo "Installing Python 3.11..."
-    brew install python@3.11
-fi
-
-# Force link Python 3.11
-brew link --force python@3.11
-
-# Ensure we're using Python 3.11
-PYTHON_CMD=$(brew --prefix python@3.11)/bin/python3.11
-echo "Using Python: $($PYTHON_CMD --version)"
+# Install required system packages
+for package in "python@3.10" "wget" "unzip"; do
+    if ! brew list $package &>/dev/null; then
+        echo "Installing $package..."
+        brew install $package
+    fi
+done
 
 echo "Check for pip"
-# Ensure pip is installed and updated
-echo "Installing/upgrading pip..."
-curl -sS https://bootstrap.pypa.io/get-pip.py | $PYTHON_CMD
-$PYTHON_CMD -m pip install --upgrade pip
+# Install pip if not already installed
+if ! command -v pip &> /dev/null; then
+    echo "Installing pip..."
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3
+fi
+
+
+
+echo "Check for UV"
+# Install UV if not already installed
+if ! command -v uv &> /dev/null; then
+    echo "Installing UV..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    
+    # Add UV to PATH temporarily for this session
+    export PATH="$HOME/.local/bin:$PATH"
+    
+    # Add to appropriate shell config file for future sessions
+    shell_name=$(basename "$SHELL")
+    case "$shell_name" in
+        "bash")
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+            ;;
+        "zsh")
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+            ;;
+        "fish")
+            echo 'set -gx PATH "$HOME/.local/bin" $PATH' >> ~/.config/fish/config.fish
+            ;;
+    esac
+    
+    # Add to .profile for broader compatibility
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
+    source ~/.profile
+    
+    echo "UV path has been added to shell config. It will be permanent after shell restart."
+fi
 
 echo "Check for virtual environment"
 # Ask about rebuilding virtual environment
@@ -89,38 +116,27 @@ if [ -d ".venv" ]; then
     fi
 fi
 
+
+
 echo "Check for virtual environment"
 if [ ! -d ".venv" ]; then
-    echo "Creating virtual environment with Python 3.11..."
-    $PYTHON_CMD -m venv .venv
+    echo "Creating virtual environment..."
+    uv venv --seed
     echo "Virtual environment created. Activating..."
     source .venv/bin/activate
+    uv pip install pip
+    # Ensure pip is installed in the virtual environment
+    echo "Ensuring pip is installed in virtual environment..."
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3
     
-    # Install essential build tools first
-    echo "Installing build dependencies..."
-    python -m pip install --upgrade pip
-    python -m pip install setuptools wheel build numpy cython
-
-    echo "Installing chumpy-py311..."
-    # Create a temporary directory for chumpy installation
-    temp_dir=$(mktemp -d)
-    git clone https://github.com/Grant-CP/chumpy-py311.git "$temp_dir"
-    cd "$temp_dir"
-    # Install in development mode with required build dependencies
-    python setup.py develop
-    cd -
-    rm -rf "$temp_dir"
-
     echo "Installing dependencies from requirements.txt..."
-    
-    # Now install the rest of the requirements
-    pip install -r requirements.txt
+    uv pip install -r requirements.txt
     
     echo "Installing PyTorch..."
-    pip install torch torchvision torchaudio
+    uv pip install --no-deps torch torchvision torchaudio
     
     echo "Installing additional dependencies..."
-    pip install h5py
+    uv pip install h5py
 else
     echo "Virtual environment already exists, activating it..."
     source .venv/bin/activate
@@ -171,6 +187,32 @@ if [ "$1" = "--with-eval" ]; then
     fi
 fi
 
+# Add UV shell completion only if not already added
+shell_name=$(basename "$SHELL")
+completion_check=""
+case "$shell_name" in
+    "bash")
+        completion_check="grep -q 'uv generate-shell-completion bash' ~/.bashrc"
+        completion_file=~/.bashrc
+        completion_cmd='eval "$(uv generate-shell-completion bash)"'
+        ;;
+    "zsh")
+        completion_check="grep -q 'uv generate-shell-completion zsh' ~/.zshrc"
+        completion_file=~/.zshrc
+        completion_cmd='eval "$(uv generate-shell-completion zsh)"'
+        ;;
+    "fish")
+        completion_check="grep -q 'uv generate-shell-completion fish' ~/.config/fish/config.fish"
+        completion_file=~/.config/fish/config.fish
+        completion_cmd='uv generate-shell-completion fish | source'
+        ;;
+esac
+
+if [ -n "$completion_check" ] && ! eval "$completion_check"; then
+    echo "$completion_cmd" >> "$completion_file"
+fi
+
+
 read -p "Please enter your Anthropic API key (or press Enter to skip): " anthropic_key
 if [ -n "$anthropic_key" ]; then
     # Add to .env file
@@ -180,6 +222,8 @@ if [ -n "$anthropic_key" ]; then
 else
     echo "Skipping Anthropic API key setup. You can set it later by adding ANTHROPIC_API_KEY to .env file"
 fi
+
+
 
 # Installation complete message
 echo "Installation complete! The virtual environment is activated."
@@ -196,6 +240,7 @@ echo "You can now run the server with: ./start.sh"
 
 # Make start script executable
 chmod +x start.sh
+
 
 # Ask user if they want to start the server
 read -p "Do you want to start the server now? (y/N): " start_server
