@@ -44,7 +44,6 @@ if ! command -v xcode-select &> /dev/null || ! xcode-select -p &> /dev/null; the
         sleep 5
     done
 fi
-echo "Check for Homebrew"
 
 # Check for Homebrew and install if missing
 if ! command -v brew &> /dev/null; then
@@ -57,8 +56,6 @@ if ! command -v brew &> /dev/null; then
     fi
 fi
 
-echo "Check for Python 3.10"
-
 # Install required system packages
 for package in "python@3.10" "wget" "unzip"; do
     if ! brew list $package &>/dev/null; then
@@ -67,7 +64,6 @@ for package in "python@3.10" "wget" "unzip"; do
     fi
 done
 
-echo "Check for pip"
 # Install pip if not already installed
 if ! command -v pip &> /dev/null; then
     echo "Installing pip..."
@@ -76,7 +72,7 @@ fi
 
 
 
-echo "Check for UV"
+
 # Install UV if not already installed
 if ! command -v uv &> /dev/null; then
     echo "Installing UV..."
@@ -106,7 +102,6 @@ if ! command -v uv &> /dev/null; then
     echo "UV path has been added to shell config. It will be permanent after shell restart."
 fi
 
-echo "Check for virtual environment"
 # Ask about rebuilding virtual environment
 if [ -d ".venv" ]; then
     read -p "Virtual environment already exists. Do you want to rebuild it? (y/N): " rebuild_venv
@@ -117,23 +112,18 @@ if [ -d ".venv" ]; then
 fi
 
 
-
-echo "Check for virtual environment"
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
-    uv venv --seed
+    uv venv --python 3.10 --seed
     echo "Virtual environment created. Activating..."
     source .venv/bin/activate
-    uv pip install pip
+    
     # Ensure pip is installed in the virtual environment
     echo "Ensuring pip is installed in virtual environment..."
     curl -sS https://bootstrap.pypa.io/get-pip.py | python3
     
     echo "Installing dependencies from requirements.txt..."
-    uv pip install -r requirements.txt
-
-     uv pip install git+https://github.com/Grant-CP/chumpy-py311.git --no-build-isolation
-
+    uv pip install -r requirements.txt --no-build-isolation
     
     echo "Installing PyTorch..."
     uv pip install --no-deps torch torchvision torchaudio
@@ -145,14 +135,12 @@ else
     source .venv/bin/activate
 fi
 
-echo "Check for spacy model"
 # Only download spacy model if not already installed
 if ! python -c "import spacy; spacy.load('en_core_web_sm')" &> /dev/null; then
     echo "Downloading spaCy model..."
     python -m spacy download en_core_web_sm
 fi
 
-echo "Check for directories"
 # Create directories if they don't exist
 echo "Setting up directories..."
 for dir in "pretrained_models" "dataset" "combined_motions_discovery" "body_models"; do
