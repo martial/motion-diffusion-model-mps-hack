@@ -74,10 +74,10 @@ We provide an automated installation script that:
 
 ```bash
 # Basic installation
-./install_mdm.sh
+sh install_mdm.sh
 
 # With evaluation dependencies
-./install_mdm.sh --with-eval
+sh install_mdm.sh --with-eval
 ```
 
 ### Running the Server
@@ -85,7 +85,7 @@ We provide an automated installation script that:
 Start the development server with:
 
 ```bash
-./start.sh
+sh start.sh
 ```
 
 This will:
