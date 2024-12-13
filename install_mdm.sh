@@ -133,6 +133,15 @@ if ! command -v uv &> /dev/null; then
     echo "UV path has been added to shell config. It will be permanent after shell restart."
 fi
 
+# Ask about rebuilding virtual environment
+if [ -d ".venv" ]; then
+    read -p "Virtual environment already exists. Do you want to rebuild it? (y/N): " rebuild_venv
+    if [[ $rebuild_venv =~ ^[Yy]$ ]]; then
+        echo "Removing existing virtual environment..."
+        rm -rf .venv
+    fi
+fi
+
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
     uv venv --seed
