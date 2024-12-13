@@ -205,4 +205,13 @@ echo "Building frontend..."
 npm run build
 cd ..
 
-echo "You can now run the server with: uv run -- python -m sample.server"
+echo "You can now run the server with: ./start.sh"
+
+# Make start script executable
+chmod +x start.sh
+
+# Ask user if they want to start the server
+read -p "Do you want to start the server now? (y/N): " start_server
+if [[ $start_server =~ ^[Yy]$ ]]; then
+    ./start.sh
+fi
