@@ -198,8 +198,7 @@ export class GenerateView extends LitElement {
   @state()
   private aiPrompts: string[] = [];
 
-  @state()
-  private isGeneratingBatch = false;
+
 
   @state()
   private batchProgress = 0;
