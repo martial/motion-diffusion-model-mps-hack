@@ -8,3 +8,5 @@ h5py
 git+https://github.com/Grant-CP/chumpy-py311.git
 git+https://github.com/openai/CLIP.git 
 flask-cors     
+anthropic
+python-dotenv

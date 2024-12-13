@@ -235,6 +235,19 @@ if [ -n "$completion_check" ] && ! eval "$completion_check"; then
     echo "$completion_cmd" >> "$completion_file"
 fi
 
+
+read -p "Please enter your Anthropic API key (or press Enter to skip): " anthropic_key
+if [ -n "$anthropic_key" ]; then
+    # Add to .env file
+    echo "Adding Anthropic API key to .env file..."
+    echo "ANTHROPIC_API_KEY='$anthropic_key'" >> .env
+    echo "Anthropic API key has been set."
+else
+    echo "Skipping Anthropic API key setup. You can set it later by adding ANTHROPIC_API_KEY to .env file"
+fi
+
+
+
 # Installation complete message
 echo "Installation complete! The virtual environment is activated."
 
@@ -250,6 +263,7 @@ echo "You can now run the server with: ./start.sh"
 
 # Make start script executable
 chmod +x start.sh
+
 
 # Ask user if they want to start the server
 read -p "Do you want to start the server now? (y/N): " start_server

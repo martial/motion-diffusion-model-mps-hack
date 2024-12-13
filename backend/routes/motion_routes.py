@@ -28,6 +28,11 @@ from data_loaders.tensors import collate
 from sample.generate import main
 
 import json
+from anthropic import Anthropic
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 motion_bp = Blueprint('motion', __name__)
@@ -47,6 +52,8 @@ DEFAULT_PARAMS = {
 
 import sys
 from argparse import ArgumentParser
+
+CLAUDE_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
 
 @motion_bp.route('/generate', methods=['POST'])
 @cross_origin()
@@ -251,4 +258,62 @@ def serve_output(filename):
     except Exception as e:
         logger.error(f"Error serving file {filename}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 404
+
+@motion_bp.route('/ai-batch', methods=['POST'])
+@cross_origin()
+def generate_ai_batch():
+    """Generate multiple motion prompts using Claude AI"""
+    try:
+        data = request.get_json()
+        input_text = data.get('text', '')
+        
+        if not input_text:
+            return jsonify({
+                'status': 'error',
+                'message': 'Input text is required'
+            }), 400
+
+        # Initialize Anthropic client
+        anthropic = Anthropic(api_key=CLAUDE_API_KEY)
+        
+        # Prompt for Claude
+        system_prompt = """Given the input text, generate 3 different motion prompts that describe human movements. 
+        Return only a JSON object with an array called 'prompts' containing 3 strings. Each prompt should be detailed 
+        and focus on physical movement. Unless specified, the prompts should start by "a person". Format: {"prompts": ["prompt1", "prompt2", "prompt3"]}"""
+        
+        # Get response from Claude
+        message = anthropic.messages.create(
+            model="claude-3-sonnet-20240229",
+            max_tokens=300,
+            temperature=0.7,
+            system=system_prompt,
+            messages=[{
+                "role": "user",
+                "content": input_text
+            }]
+        )
+        
+        # Parse the response
+        try:
+            response_content = message.content[0].text
+            prompts_data = json.loads(response_content)
+            
+            return jsonify({
+                'status': 'success',
+                'prompts': prompts_data['prompts'],
+                'results': []  # Initialize empty results array
+            })
+            
+        except (json.JSONDecodeError, KeyError) as e:
+            return jsonify({
+                'status': 'error',
+                'message': f'Failed to parse AI response: {str(e)}'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Error in AI batch generation: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
