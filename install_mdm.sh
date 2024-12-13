@@ -177,7 +177,7 @@ if [ ! -d "bodymodels" ]; then
     wget "https://www.dropbox.com/scl/fi/pxxub0k45ad4l4j0o9jxx/body_models.zip?rlkey=lrhyoo75lf2t390okue40apf3&dl=1" -O bodymodels.zip
     echo "Extracting model..."
     unzip -n bodymodels.zip 
-    rm humanml_enc_512_50steps.zip
+    rm bodymodels.zip
 else
     echo "Pre-trained model already exists, skipping download..."
 fi
