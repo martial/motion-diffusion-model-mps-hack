@@ -74,38 +74,6 @@ if ! command -v pip &> /dev/null; then
     curl -sS https://bootstrap.pypa.io/get-pip.py | python3
 fi
 
-
-
-echo "Check for UV"
-# Install UV if not already installed
-if ! command -v uv &> /dev/null; then
-    echo "Installing UV..."
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    
-    # Add UV to PATH temporarily for this session
-    export PATH="$HOME/.local/bin:$PATH"
-    
-    # Add to appropriate shell config file for future sessions
-    shell_name=$(basename "$SHELL")
-    case "$shell_name" in
-        "bash")
-            echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-            ;;
-        "zsh")
-            echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-            ;;
-        "fish")
-            echo 'set -gx PATH "$HOME/.local/bin" $PATH' >> ~/.config/fish/config.fish
-            ;;
-    esac
-    
-    # Add to .profile for broader compatibility
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
-    source ~/.profile
-    
-    echo "UV path has been added to shell config. It will be permanent after shell restart."
-fi
-
 echo "Check for virtual environment"
 # Ask about rebuilding virtual environment
 if [ -d ".venv" ]; then
@@ -116,27 +84,24 @@ if [ -d ".venv" ]; then
     fi
 fi
 
-
-
 echo "Check for virtual environment"
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
-    uv venv --seed
+    python3 -m venv .venv
     echo "Virtual environment created. Activating..."
     source .venv/bin/activate
-    uv pip install pip
-    # Ensure pip is installed in the virtual environment
-    echo "Ensuring pip is installed in virtual environment..."
-    curl -sS https://bootstrap.pypa.io/get-pip.py | python3
+    
+    # Upgrade pip in the virtual environment
+    python3 -m pip install --upgrade pip
     
     echo "Installing dependencies from requirements.txt..."
-    uv pip install -r requirements.txt
+    pip install -r requirements.txt
     
     echo "Installing PyTorch..."
-    uv pip install --no-deps torch torchvision torchaudio
+    pip install torch torchvision torchaudio
     
     echo "Installing additional dependencies..."
-    uv pip install h5py
+    pip install h5py
 else
     echo "Virtual environment already exists, activating it..."
     source .venv/bin/activate
@@ -186,32 +151,6 @@ if [ "$1" = "--with-eval" ]; then
         echo "Evaluator dependencies already installed, skipping..."
     fi
 fi
-
-# Add UV shell completion only if not already added
-shell_name=$(basename "$SHELL")
-completion_check=""
-case "$shell_name" in
-    "bash")
-        completion_check="grep -q 'uv generate-shell-completion bash' ~/.bashrc"
-        completion_file=~/.bashrc
-        completion_cmd='eval "$(uv generate-shell-completion bash)"'
-        ;;
-    "zsh")
-        completion_check="grep -q 'uv generate-shell-completion zsh' ~/.zshrc"
-        completion_file=~/.zshrc
-        completion_cmd='eval "$(uv generate-shell-completion zsh)"'
-        ;;
-    "fish")
-        completion_check="grep -q 'uv generate-shell-completion fish' ~/.config/fish/config.fish"
-        completion_file=~/.config/fish/config.fish
-        completion_cmd='uv generate-shell-completion fish | source'
-        ;;
-esac
-
-if [ -n "$completion_check" ] && ! eval "$completion_check"; then
-    echo "$completion_cmd" >> "$completion_file"
-fi
-
 
 read -p "Please enter your Anthropic API key (or press Enter to skip): " anthropic_key
 if [ -n "$anthropic_key" ]; then
