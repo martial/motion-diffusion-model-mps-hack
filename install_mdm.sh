@@ -116,8 +116,7 @@ if [ -d ".venv" ]; then
     fi
 fi
 
-echo "Install pip with uv"
-uv pip install pip
+
 
 echo "Check for virtual environment"
 if [ ! -d ".venv" ]; then
@@ -125,7 +124,7 @@ if [ ! -d ".venv" ]; then
     uv venv --seed
     echo "Virtual environment created. Activating..."
     source .venv/bin/activate
-    
+    uv pip install pip
     # Ensure pip is installed in the virtual environment
     echo "Ensuring pip is installed in virtual environment..."
     curl -sS https://bootstrap.pypa.io/get-pip.py | python3
