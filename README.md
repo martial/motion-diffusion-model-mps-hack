@@ -27,7 +27,7 @@ We provide an automated installation script that:
 sh install_mdm.sh
 
 # With evaluation dependencies  
-sh nstall_mdm.sh --with-eval
+sh install_mdm.sh --with-eval
 ```
 
 ### Running the Server
