@@ -1,4 +1,14 @@
-# Human Motion Diffusion Model
+# Human Motion Diffusion Model (Web Interface Fork)
+
+This is a fork of the original [Human Motion Diffusion Model](https://github.com/GuyTevet/motion-diffusion-model) that adds a web interface and optimizations for easier deployment. Key additions include:
+
+- Web-based UI for interacting with the model
+- Streamlined installation process
+- Backend API interface for processing requests
+- Optimizations for Apple Silicon processors
+- Containerized deployment options
+
+The goal of this fork is to make the model more accessible and easier to use through a browser interface, while maintaining all the original functionality.
 
 [![arXiv](https://img.shields.io/badge/arXiv-<2209.14916>-<COLOR>.svg)](https://arxiv.org/abs/2209.14916)
 <a href="https://replicate.com/arielreplicate/motion_diffusion_model"><img src="https://replicate.com/arielreplicate/motion_diffusion_model/badge"></a>
@@ -16,6 +26,7 @@ We provide an automated installation script that:
 - Installs all dependencies
 - Downloads the pre-trained model
 - Sets up evaluation dependencies (optional)
+- Includes optimizations for Apple Silicon processors
 
 ```bash
 # Basic installation
@@ -37,6 +48,14 @@ This will:
 - Activate the virtual environment
 - Set required environment variables
 - Start Flask on port 3000
+- Initialize the backend interface for processing requests
+
+Once running, open your browser and navigate to:
+```
+http://localhost:3000
+```
+
+This will load the web interface where you can interact with the model.
 
 ![teaser](https://github.com/GuyTevet/mdm-page/raw/main/static/figures/github.gif)
 
