@@ -24,10 +24,10 @@ We provide an automated installation script that:
 
 ```bash
 # Basic installation
-sh install_mdm.sh
+./install_mdm.sh
 
 # With evaluation dependencies  
-sh install_mdm.sh --with-eval
+./install_mdm.sh --with-eval
 ```
 
 ### Running the Server
