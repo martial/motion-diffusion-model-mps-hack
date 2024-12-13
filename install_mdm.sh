@@ -4,7 +4,18 @@ set -e  # Exit on error
 
 # Pull latest changes
 echo "Pulling latest changes..."
-git pull origin main
+git_output=$(git pull origin main)
+
+# Check if changes were pulled
+if [[ "$git_output" != "Already up to date." ]]; then
+    echo "New changes were pulled from the repository."
+    read -p "Would you like to restart the installation script to apply these changes? (y/N): " restart
+    if [[ $restart =~ ^[Yy]$ ]]; then
+        echo "Restarting installation script..."
+        exec "$0" "$@"
+        exit 0
+    fi
+fi
 
 # Function definitions
 cleanup() {
@@ -55,6 +66,9 @@ if ! command -v brew &> /dev/null; then
         eval "$(/opt/homebrew/bin/brew shellenv)"
     fi
 fi
+
+brew install node 
+brew install ffmpeg
 
 # Install required system packages
 for package in "python@3.10" "wget" "unzip"; do
@@ -128,8 +142,7 @@ if [ ! -d ".venv" ]; then
     echo "Installing PyTorch..."
     uv pip install --no-deps torch torchvision torchaudio
     
-    echo "Installing additional dependencies..."
-    uv pip install h5py
+
 else
     echo "Virtual environment already exists, activating it..."
     source .venv/bin/activate
@@ -158,6 +171,28 @@ else
     echo "Pre-trained model already exists, skipping download..."
 fi
 
+# Download and extract the model if not already present
+if [ ! -d "bodymodels" ]; then
+    echo "Downloading body models..."
+    wget "https://www.dropbox.com/scl/fi/pxxub0k45ad4l4j0o9jxx/body_models.zip?rlkey=lrhyoo75lf2t390okue40apf3&dl=1" -O bodymodels.zip
+    echo "Extracting model..."
+    unzip -n bodymodels.zip 
+    rm humanml_enc_512_50steps.zip
+else
+    echo "Pre-trained model already exists, skipping download..."
+fi
+
+# Download and extract the model if not already present
+if [ ! -d "dataset/HumanML3D" ]; then
+    echo "Downloading HumanML3D dataset..."
+    wget "https://www.dropbox.com/scl/fi/z64eg54olpxx0hp2pjhp5/HumanML3D.zip?rlkey=ruzx2ybgi0ycdmm4djic1d9ea&dl=1" -O HumanML3D.zip
+    echo "Extracting model..."
+    unzip -n HumanML3D.zip -d dataset/
+    rm HumanML3D.zip
+else
+    echo "Pre-trained model already exists, skipping download..."
+fi
+
 # Install evaluator dependencies only if requested and not already installed
 if [ "$1" = "--with-eval" ]; then
     if [ ! -d "prepare" ]; then
@@ -178,30 +213,8 @@ if [ "$1" = "--with-eval" ]; then
     fi
 fi
 
-# Add UV shell completion only if not already added
-shell_name=$(basename "$SHELL")
-completion_check=""
-case "$shell_name" in
-    "bash")
-        completion_check="grep -q 'uv generate-shell-completion bash' ~/.bashrc"
-        completion_file=~/.bashrc
-        completion_cmd='eval "$(uv generate-shell-completion bash)"'
-        ;;
-    "zsh")
-        completion_check="grep -q 'uv generate-shell-completion zsh' ~/.zshrc"
-        completion_file=~/.zshrc
-        completion_cmd='eval "$(uv generate-shell-completion zsh)"'
-        ;;
-    "fish")
-        completion_check="grep -q 'uv generate-shell-completion fish' ~/.config/fish/config.fish"
-        completion_file=~/.config/fish/config.fish
-        completion_cmd='uv generate-shell-completion fish | source'
-        ;;
-esac
 
-if [ -n "$completion_check" ] && ! eval "$completion_check"; then
-    echo "$completion_cmd" >> "$completion_file"
-fi
+
 
 
 read -p "Please enter your Anthropic API key (or press Enter to skip): " anthropic_key
@@ -231,7 +244,6 @@ echo "You can now run the server with: ./start.sh"
 
 # Make start script executable
 chmod +x start.sh
-
 
 # Ask user if they want to start the server
 read -p "Do you want to start the server now? (y/N): " start_server
