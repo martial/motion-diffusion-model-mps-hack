@@ -367,7 +367,9 @@ export class ListView extends LitElement {
                 ...motion.files,
                 data: motion.files.data.filter(data => {
                     const videoId = `${motion.id}-${data.sample_id}-${data.repetition_id}`;
-                    return !this.hiddenVideos.has(videoId);
+                    if (this.hiddenVideos.has(videoId)) return false;
+                    if (this.showFavoritesOnly && !this.favorites.has(videoId)) return false;
+                    return true;
                 })
             }
         }))
