@@ -11,6 +11,7 @@ interface MotionData {
   text_prompt: string;
   motion_length: string;
   visualization: string;
+  smpl_data?: string;
 }
 
 @customElement('generate-view')
