@@ -26,10 +26,12 @@ from data_loaders.humanml.utils.plot_script import plot_3d_motion
 from data_loaders.tensors import collate
 
 from sample.generate import main
+from visualize import vis_utils
 
 import json
 from anthropic import Anthropic
 from dotenv import load_dotenv
+import re
 
 # Load environment variables from .env file
 load_dotenv()
@@ -141,54 +143,80 @@ def list_motions():
         
         results = []
         for motion_dir in motion_dirs:
-            dir_path = os.path.join(OUTPUT_DIR, motion_dir)
-            
-            # Get timestamp from directory name
-            timestamp = int(motion_dir.replace('motion_', ''))
-            
-            # Find all files in the directory
-            files = os.listdir(dir_path)
-            
-            # Group files by sample and repetition
-            motion_data = []
-            params_file = None
-            
-            # Find all sample files
-            sample_files = [f for f in files if f.startswith('sample') and f.endswith('.npy')]
-            
-            for sample_file in sample_files:
-                # Extract sample and repetition numbers
-                base_name = sample_file.replace('.npy', '')
-                sample_num = int(base_name[6:8])  # extract XX from sampleXX
-                rep_num = int(base_name[-2:])     # extract YY from repYY
+            try:
+                dir_path = os.path.join(OUTPUT_DIR, motion_dir)
                 
-                # Get associated files
-                params_path = os.path.join(dir_path, f'{base_name}_params.json')
-                if os.path.exists(params_path):
-                    with open(params_path, 'r') as f:
-                        params = json.load(f)
-                else:
-                    params = {}
+                # Get timestamp from directory name more safely
+                try:
+                    timestamp = int(motion_dir.replace('motion_', ''))
+                except ValueError:
+                    logger.warning(f"Skipping directory with invalid timestamp: {motion_dir}")
+                    continue
                 
-                motion_data.append({
-                    'sample_id': sample_num,
-                    'repetition_id': rep_num,
-                    'motion_data': f'{motion_dir}/{sample_file}',
-                    'parameters': f'{motion_dir}/{base_name}_params.json',
-                    'text_prompt': f'{motion_dir}/{base_name}.txt',
-                    'motion_length': f'{motion_dir}/{base_name}_len.txt',
-                    'visualization': f'{motion_dir}/{base_name}.mp4',
-                    'generation_params': params
+                # Find all files in the directory
+                files = os.listdir(dir_path)
+                
+                # Group files by sample and repetition
+                motion_data = []
+                
+                # Find all sample files, excluding smpl files
+                sample_files = [f for f in files if f.startswith('sample') and 
+                              f.endswith('.npy') and '_smpl' not in f]
+                
+                for sample_file in sample_files:
+                    # Extract sample and repetition numbers
+                    base_name = sample_file.replace('.npy', '')
+                    print(base_name)
+                    sample_num = int(base_name[6:8])  # extract XX from sampleXX
+                    rep_num = int(base_name[-2:])     # extract YY from repYY
+                    
+                    # Get associated files
+                    params_path = os.path.join(dir_path, f'{base_name}_params.json')
+                    if os.path.exists(params_path):
+                        with open(params_path, 'r') as f:
+                            params = json.load(f)
+                    else:
+                        params = {}
+                    
+                    # Check for SMPL file with both naming conventions
+                    npy_smpl_path = None
+                    smpl_variants = [
+                        f'sample{sample_num:02d}_rep{rep_num:02d}_smpl.npy',  # with leading zeros
+                        f'sample{sample_num}_rep{rep_num}_smpl.npy'           # without leading zeros
+                    ]
+                    
+                    for variant in smpl_variants:
+                        temp_path = os.path.join(dir_path, variant)
+                        if os.path.exists(temp_path):
+                            npy_smpl_path = temp_path
+                            npy_smpl_path = npy_smpl_path + ".pkl"
+                            break
+
+                    motion_data.append({
+                        'sample_id': sample_num,
+                        'repetition_id': rep_num,
+                        'motion_data': f'{motion_dir}/{sample_file}',
+                        'parameters': f'{motion_dir}/{base_name}_params.json',
+                        'text_prompt': f'{motion_dir}/{base_name}.txt',
+                        'motion_length': f'{motion_dir}/{base_name}_len.txt',
+                        'visualization': f'{motion_dir}/{base_name}.mp4',
+                        'generation_params': params,
+                        'smpl_data': npy_smpl_path
+                    })
+                
+                results.append({
+                    'id': motion_dir,
+                    'timestamp': timestamp,
+                    'files': {
+                        'visualizations': [f'{motion_dir}/{f}' for f in files if f.endswith('.mp4')],
+                        'data': motion_data
+                    }
                 })
             
-            results.append({
-                'id': motion_dir,
-                'timestamp': timestamp,
-                'files': {
-                    'visualizations': [f'{motion_dir}/{f}' for f in files if f.endswith('.mp4')],
-                    'data': motion_data
-                }
-            })
+            except Exception as e:
+                logger.error(f"Error listing motions: {str(e)}", exc_info=True)
+                exit()
+                continue
         
         # Sort by timestamp descending (newest first)
         results.sort(key=lambda x: x['timestamp'], reverse=True)
@@ -224,16 +252,7 @@ def get_parameters():
         "parameters": DEFAULT_PARAMS
     })
 
-@motion_bp.route('/health', methods=['GET'])
-@cross_origin()
-def health_check():
-    """Health check endpoint"""
-    status = motion_bp.motion_service.get_status()
-    return jsonify({
-        "status": "healthy" if status["model_loaded"] else "initializing",
-        **status,
-        "version": "1.0.0"
-    })
+
 
 @motion_bp.route('/outputs/<path:filename>')
 @cross_origin()
@@ -258,6 +277,87 @@ def serve_output(filename):
     except Exception as e:
         logger.error(f"Error serving file {filename}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 404
+
+@motion_bp.route('/export-smpl', methods=['POST'])
+@cross_origin()
+def export_smpl():
+    """Export SMPL data for a given motion file"""
+    try:
+        data = request.get_json()
+        motion_path = data.get('motion_path', '')
+        
+        if not motion_path:
+            return jsonify({
+                'status': 'error',
+                'message': 'Motion path is required'
+            }), 400
+
+        # Split the path into directory and file
+        if '/' in motion_path:
+            directory, file = motion_path.split('/', 1)
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid motion path format'
+            }), 400
+
+        # Construct the full paths
+        dir_path = os.path.join(OUTPUT_DIR, directory)
+        input_path = os.path.join(dir_path, file)
+
+        if not os.path.exists(input_path):
+            return jsonify({
+                'status': 'error',
+                'message': 'Motion file not found'
+            }), 404
+
+        # Extract sample and repetition numbers from filename
+        # Assuming filename format: sampleXX_repYY.npy
+        filename = os.path.basename(file)
+        base_name = filename.replace('.npy', '')
+        
+        try:
+            # Extract numbers more safely
+            sample_match = re.search(r'sample(\d+)', base_name)
+            rep_match = re.search(r'rep(\d+)', base_name)
+            
+            if not sample_match or not rep_match:
+                raise ValueError("Invalid filename format")
+                
+            sample_num = int(sample_match.group(1))
+            rep_num = int(rep_match.group(1))
+        except (ValueError, AttributeError) as e:
+            return jsonify({
+                'status': 'error',
+                'message': f'Invalid filename format: {str(e)}'
+            }), 400
+
+        # Generate SMPL npy file
+        npy_smpl_path = os.path.join(dir_path, f'sample{sample_num}_rep{rep_num}_smpl.npy')
+        print(npy_smpl_path)
+
+        try:
+            print(f"Generating SMPL npy file for sample {sample_num} repetition {rep_num}")
+            npy2obj = vis_utils.npy2obj(input_path, 0, 0, device="mps", cuda=False)  # Always use index 0
+            npy2obj.save_npy(npy_smpl_path)
+            print("savec to ", npy_smpl_path)
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'message': f'Failed to generate SMPL data: {str(e)}'
+            }), 500
+
+        return jsonify({
+            'status': 'success',
+            'smpl_path': f'{directory}/sample{sample_num:02d}_rep{rep_num:02d}_smpl.npy'
+        })
+
+    except Exception as e:
+        logger.error(f"Error exporting SMPL data: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
 @motion_bp.route('/ai-batch', methods=['POST'])
 @cross_origin()

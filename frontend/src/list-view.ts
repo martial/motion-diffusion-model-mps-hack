@@ -21,6 +21,7 @@ interface MotionData {
   sample_id: number;
   text_prompt: string;
   visualization: string;
+  smpl_data?: string;
 }
 
 interface MotionFile {
@@ -81,6 +82,141 @@ export class ListView extends LitElement {
       color: #94A3B8;
       padding: 12px;
     }
+  
+    .download-button.smpl {
+      background-color: #8e44ad;
+    }
+  
+    a.download-button.smpl {
+      background-color: #2ecc71;
+    }
+  
+    a.download-button.smpl:hover {
+      background-color: #27ae60;
+    }
+  
+    button.download-button.smpl:hover {
+      background-color: #9b59b6;
+    }
+  
+    .download-button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  
+    @keyframes gradient {
+      0% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
+      100% {
+        background-position: 0% 50%;
+      }
+    }
+  
+    .download-button.smpl.generating {
+      background: linear-gradient(-45deg, #8e44ad, #9b59b6, #3498db, #2980b9);
+      background-size: 400% 400%;
+      animation: gradient 3s ease infinite;
+      position: relative;
+      overflow: hidden;
+    }
+  
+    .download-button.smpl.generating::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.5);
+      animation: loading 2s linear infinite;
+    }
+  
+    @keyframes loading {
+      0% {
+        transform: translateX(-100%);
+      }
+      100% {
+        transform: translateX(100%);
+      }
+    }
+  
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+      position: static;
+      top: auto;
+      right: auto;
+    }
+  
+    .action-button {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid #1E293B;
+      border-radius: 6px;
+      padding: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      color: #94A3B8;
+    }
+  
+    .action-button:hover {
+      background: rgba(30, 41, 59, 0.8);
+      color: #F8FAFC;
+    }
+  
+    .action-button.favorite {
+      color: #94A3B8;
+    }
+  
+    .action-button.favorite.active {
+      color: #EAB308;
+    }
+  
+    .action-button.remove:hover {
+      background: rgba(220, 38, 38, 0.8);
+      border-color: #DC2626;
+    }
+  
+    .generation-container {
+      position: relative;
+    }
+  
+    .video-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px;
+      background: rgba(15, 23, 42, 0.8);
+    }
+  
+    .filter-button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      font-size: 0.875rem;
+      border: 1px solid #1E293B;
+      border-radius: 8px;
+      background-color: #0B1120;
+      color: #94A3B8;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+  
+    .filter-button:hover {
+      background-color: #151F32;
+      border-color: #2D3748;
+      color: #F8FAFC;
+    }
+  
+    .filter-button.favorite.active {
+      background-color: #1E293B;
+      border-color: #EAB308;
+      color: #EAB308;
+    }
   `;
 
   @state()
@@ -98,9 +234,23 @@ export class ListView extends LitElement {
   @state()
   private selectedPrompt: string = 'all';
 
+  @state()
+  private generatingSMPL: Record<string, boolean> = {};
+
+  @state()
+  private favorites: Set<string> = new Set();
+
+  @state()
+  private showFavoritesOnly = false;
+
   connectedCallback() {
     super.connectedCallback();
     this.loadMotions();
+    // Load favorites from localStorage
+    const savedFavorites = localStorage.getItem('favorites');
+    if (savedFavorites) {
+      this.favorites = new Set(JSON.parse(savedFavorites));
+    }
   }
 
   private async loadMotions() {
@@ -169,7 +319,115 @@ export class ListView extends LitElement {
         if (this.selectedPrompt === 'all') return true;
         const prompt = motion.files.data[0]?.generation_params?.prompt;
         return prompt === this.selectedPrompt;
+      })
+      .map(motion => ({
+        ...motion,
+        files: {
+          ...motion.files,
+          data: motion.files.data.filter(data => {
+            if (!this.showFavoritesOnly) return true;
+            const videoId = `${motion.id}-${data.sample_id}-${data.repetition_id}`;
+            return this.favorites.has(videoId);
+          })
+        }
+      }))
+      .filter(motion => motion.files.data.length > 0);
+  }
+
+  private async generateSMPL(motionPath: string, sampleId: number, repId: number, motionId: string) {
+    const key = `${motionId}-${sampleId}-${repId}`;
+    this.generatingSMPL = { ...this.generatingSMPL, [key]: true };
+    
+    try {
+      const response = await fetch('http://localhost:3000/api/motion/export-smpl', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ motion_path: motionPath })
       });
+
+      const data = await response.json();
+      if (data.status === 'success') {
+        // Update the motions to include the new SMPL path
+        this.motions = this.motions.map(motion => ({
+          ...motion,
+          files: {
+            ...motion.files,
+            data: motion.files.data.map((item: any) => {
+              if (item.sample_id === sampleId && item.repetition_id === repId) {
+                return { ...item, smpl_data: data.smpl_path };
+              }
+              return item;
+            })
+          }
+        }));
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : 'Failed to generate SMPL data';
+    } finally {
+      this.generatingSMPL = { ...this.generatingSMPL, [key]: false };
+    }
+  }
+
+  private toggleFavorite(motionId: string, sampleId: number, repId: number) {
+    const videoId = `${motionId}-${sampleId}-${repId}`;
+    if (this.favorites.has(videoId)) {
+      this.favorites.delete(videoId);
+    } else {
+      this.favorites.add(videoId);
+    }
+    this.saveFavorites();
+    this.requestUpdate();
+  }
+
+  private async removeMotion(motionId: string, sampleId: number, repId: number) {
+    if (!confirm('Are you sure you want to remove this video?')) return;
+    
+    try {
+      const response = await fetch(`http://localhost:3000/api/motion/${motionId}/${sampleId}/${repId}`, {
+        method: 'DELETE'
+      });
+      
+      const data = await response.json();
+      if (data.status === 'success') {
+        // Remove the specific video from the motion data
+        this.motions = this.motions.map(motion => {
+          if (motion.id === motionId) {
+            return {
+              ...motion,
+              files: {
+                ...motion.files,
+                data: motion.files.data.filter(d => 
+                  !(d.sample_id === sampleId && d.repetition_id === repId)
+                )
+              }
+            };
+          }
+          return motion;
+        });
+
+        // Remove empty motions
+        this.motions = this.motions.filter(motion => motion.files.data.length > 0);
+
+        // Remove from favorites if it was favorited
+        const videoId = `${motionId}-${sampleId}-${repId}`;
+        if (this.favorites.has(videoId)) {
+          this.favorites.delete(videoId);
+          this.saveFavorites();
+        }
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : 'Failed to remove video';
+    }
+  }
+
+  private saveFavorites() {
+    localStorage.setItem('favorites', JSON.stringify(Array.from(this.favorites)));
   }
 
   render() {
@@ -203,6 +461,19 @@ export class ListView extends LitElement {
             <option value=${prompt} ?selected=${this.selectedPrompt === prompt}>${prompt}</option>
           `)}
         </select>
+
+        <button 
+          class="filter-button favorite ${this.showFavoritesOnly ? 'active' : ''}"
+          @click=${() => {
+            this.showFavoritesOnly = !this.showFavoritesOnly;
+            this.requestUpdate();
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="${this.showFavoritesOnly ? 'currentColor' : 'none'}" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/>
+          </svg>
+          Favorites Only
+        </button>
       </div>
 
       <div class="generations-list">
@@ -227,42 +498,81 @@ export class ListView extends LitElement {
                     <span class="motion-timestamp">${this.formatTimestamp(motion.timestamp)}</span>
                   </div>
                   <div class="samples-grid">
-                    ${motion.files.data.map(data => html`
-                      <div class="video-container">
-                        <div class="video-header">
-                          <span>Sample ${data.sample_id + 1} / Rep ${data.repetition_id + 1}</span>
-                        </div>
-                        <video 
-                          controls 
-                          loop 
-                          muted 
-                          class="video-preview"
-                          src=${this.getFileUrl(data.visualization)}
-                        ></video>
-                        <div class="download-group">
-                          <div class="download-group-files">
-                            <a href=${this.getFileUrl(data.motion_data)} download class="download-button npy">
-                              <svg class="download-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                              </svg>
-                              Motion Data
-                            </a>
-                            <a href=${this.getFileUrl(data.parameters)} download class="download-button json">
-                              <svg class="download-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                              </svg>
-                              Parameters
-                            </a>
-                            <a href=${this.getFileUrl(data.visualization)} download class="download-button mp4">
-                              <svg class="download-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                              </svg>
-                              Video
-                            </a>
+                    ${motion.files.data.map(data => {
+                      const videoId = `${motion.id}-${data.sample_id}-${data.repetition_id}`;
+                      return html`
+                        <div class="video-container">
+                          <div class="video-header">
+                            <span>Sample ${data.sample_id + 1} / Rep ${data.repetition_id + 1}</span>
+                            <div class="action-buttons">
+                              <button 
+                                class="action-button favorite ${this.favorites.has(videoId) ? 'active' : ''}"
+                                @click=${() => this.toggleFavorite(motion.id, data.sample_id, data.repetition_id)}
+                                title="${this.favorites.has(videoId) ? 'Remove from favorites' : 'Add to favorites'}"
+                              >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="${this.favorites.has(videoId) ? 'currentColor' : 'none'}" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/>
+                                </svg>
+                              </button>
+                              <button 
+                                class="action-button remove"
+                                @click=${() => this.removeMotion(motion.id, data.sample_id, data.repetition_id)}
+                                title="Remove video"
+                              >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                          <video 
+                            controls 
+                            loop 
+                            muted 
+                            class="video-preview"
+                            src=${this.getFileUrl(data.visualization)}
+                          ></video>
+                          <div class="download-group">
+                            <div class="download-group-files">
+                              <a href=${this.getFileUrl(data.motion_data)} download class="download-button npy">
+                                <svg class="download-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                </svg>
+                                Motion Data
+                              </a>
+                              <a href=${this.getFileUrl(data.parameters)} download class="download-button json">
+                                <svg class="download-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                </svg>
+                                Parameters
+                              </a>
+                              <a href=${this.getFileUrl(data.visualization)} download class="download-button mp4">
+                                <svg class="download-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                </svg>
+                                Video
+                              </a>
+                              ${data.smpl_data ? html`
+                                <a href=${this.getFileUrl(data.smpl_data)} download class="download-button smpl">
+                                  <svg class="download-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                  </svg>
+                                  SMPL Data
+                                </a>
+                              ` : html`
+                                <button 
+                                  @click=${() => this.generateSMPL(data.motion_data, data.sample_id, data.repetition_id, motion.id)}
+                                  class="download-button smpl ${this.generatingSMPL[`${motion.id}-${data.sample_id}-${data.repetition_id}`] ? 'generating' : ''}"
+                                  ?disabled=${this.generatingSMPL[`${motion.id}-${data.sample_id}-${data.repetition_id}`]}
+                                >
+                                  ${this.generatingSMPL[`${motion.id}-${data.sample_id}-${data.repetition_id}`] ? 'Generating SMPL...' : 'Generate SMPL'}
+                                </button>
+                              `}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    `)}
+                      `;
+                    })}
                   </div>
                 </div>
               `;

@@ -183,6 +183,19 @@ export class GenerateView extends LitElement {
         background-position: -200% center;
       }
     }
+
+    .download-button.smpl {
+      background-color: #8e44ad;
+    }
+
+    .download-button.smpl:hover {
+      background-color: #9b59b6;
+    }
+
+    .download-button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   `;
 
   // State declarations
@@ -208,6 +221,9 @@ export class GenerateView extends LitElement {
 
   @state()
   private activeAction: 'generate' | 'ai-prompts' | 'batch' | 'randomize' | null = null;
+
+  @state()
+  private generatingSMPL: Record<string, boolean> = {};
 
   // Form handling methods
   private async handleSubmit(e: Event) {
@@ -370,6 +386,44 @@ export class GenerateView extends LitElement {
     this.activeAction = null;
   }
 
+  private async generateSMPL(motionPath: string, sampleId: number, repId: number) {
+    const key = `${sampleId}-${repId}`;
+    this.generatingSMPL = { ...this.generatingSMPL, [key]: true };
+    
+    try {
+      const response = await fetch('http://localhost:3000/api/motion/export-smpl', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ motion_path: motionPath })
+      });
+
+      const data = await response.json();
+      if (data.status === 'success') {
+        // Update the results to include the new SMPL path
+        this.results = this.results.map(result => ({
+          ...result,
+          files: {
+            ...result.files,
+            data: result.files.data.map((item: MotionData) => {
+              if (item.sample_id === sampleId && item.repetition_id === repId) {
+                return { ...item, smpl_data: data.smpl_path };
+              }
+              return item;
+            })
+          }
+        }));
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : 'Failed to generate SMPL data';
+    } finally {
+      this.generatingSMPL = { ...this.generatingSMPL, [key]: false };
+    }
+  }
+
   // Result rendering methods
   private renderResults() {
     return html`
@@ -493,6 +547,22 @@ export class GenerateView extends LitElement {
                     </svg>
                     Video
                   </a>
+                  ${data.smpl_data ? html`
+                    <a href=${this.getFileUrl(data.smpl_data)} download target="_blank" class="download-button smpl">
+                      <svg class="download-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                      </svg>
+                      SMPL Data
+                    </a>
+                  ` : html`
+                    <button 
+                      @click=${() => this.generateSMPL(data.motion_data, data.sample_id, data.repetition_id)}
+                      class="download-button smpl"
+                      ?disabled=${this.generatingSMPL[`${data.sample_id}-${data.repetition_id}`]}
+                    >
+                      ${this.generatingSMPL[`${data.sample_id}-${data.repetition_id}`] ? 'Generating...' : 'Generate SMPL'}
+                    </button>
+                  `}
                 </div>
               </div>
             </div>
