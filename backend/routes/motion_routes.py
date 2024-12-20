@@ -333,8 +333,8 @@ def export_smpl():
             }), 400
 
         # Generate SMPL npy file
-        npy_smpl_path = os.path.join(dir_path, f'sample{sample_num}_rep{rep_num}_smpl.npy')
-        print(npy_smpl_path)
+        npy_smpl_path = os.path.join(dir_path, f'sample{sample_num:02d}_rep{rep_num:02d}_smpl.npy')
+        #print(npy_smpl_path)
 
         try:
             print(f"Generating SMPL npy file for sample {sample_num} repetition {rep_num}")
@@ -412,6 +412,162 @@ def generate_ai_batch():
             
     except Exception as e:
         logger.error(f"Error in AI batch generation: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@motion_bp.route('/favorites', methods=['GET', 'POST', 'DELETE'])
+@cross_origin()
+def handle_favorites():
+    """Handle favorite motions"""
+    try:
+        # Store favorites in a JSON file
+        favorites_path = os.path.join(OUTPUT_DIR, 'favorites.json')
+        
+        # GET: Retrieve favorites
+        if request.method == 'GET':
+            if os.path.exists(favorites_path):
+                with open(favorites_path, 'r') as f:
+                    return jsonify({
+                        'status': 'success',
+                        'favorites': json.load(f)
+                    })
+            return jsonify({'status': 'success', 'favorites': []})
+        
+        # POST: Add to favorites
+        elif request.method == 'POST':
+            data = request.get_json()
+            video_id = data.get('videoId')
+            
+            if not video_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Video ID is required'
+                }), 400
+                
+            favorites = []
+            if os.path.exists(favorites_path):
+                with open(favorites_path, 'r') as f:
+                    favorites = json.load(f)
+                    
+            if video_id not in favorites:
+                favorites.append(video_id)
+                
+            with open(favorites_path, 'w') as f:
+                json.dump(favorites, f)
+                
+            return jsonify({
+                'status': 'success',
+                'favorites': favorites
+            })
+            
+        # DELETE: Remove from favorites
+        elif request.method == 'DELETE':
+            data = request.get_json()
+            video_id = data.get('videoId')
+            
+            if not video_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Video ID is required'
+                }), 400
+                
+            if os.path.exists(favorites_path):
+                with open(favorites_path, 'r') as f:
+                    favorites = json.load(f)
+                    
+                if video_id in favorites:
+                    favorites.remove(video_id)
+                    
+                with open(favorites_path, 'w') as f:
+                    json.dump(favorites, f)
+                    
+            return jsonify({
+                'status': 'success',
+                'favorites': favorites
+            })
+            
+    except Exception as e:
+        logger.error(f"Error handling favorites: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@motion_bp.route('/hidden', methods=['GET', 'POST', 'DELETE'])
+@cross_origin()
+def handle_hidden():
+    """Handle hidden motions"""
+    try:
+        # Store hidden videos in a JSON file
+        hidden_path = os.path.join(OUTPUT_DIR, 'hidden.json')
+        
+        # GET: Retrieve hidden videos
+        if request.method == 'GET':
+            if os.path.exists(hidden_path):
+                with open(hidden_path, 'r') as f:
+                    return jsonify({
+                        'status': 'success',
+                        'hidden': json.load(f)
+                    })
+            return jsonify({'status': 'success', 'hidden': []})
+        
+        # POST: Add to hidden
+        elif request.method == 'POST':
+            data = request.get_json()
+            video_id = data.get('videoId')
+            
+            if not video_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Video ID is required'
+                }), 400
+                
+            hidden = []
+            if os.path.exists(hidden_path):
+                with open(hidden_path, 'r') as f:
+                    hidden = json.load(f)
+                    
+            if video_id not in hidden:
+                hidden.append(video_id)
+                
+            with open(hidden_path, 'w') as f:
+                json.dump(hidden, f)
+                
+            return jsonify({
+                'status': 'success',
+                'hidden': hidden
+            })
+            
+        # DELETE: Remove from hidden (unhide)
+        elif request.method == 'DELETE':
+            data = request.get_json()
+            video_id = data.get('videoId')
+            
+            if not video_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Video ID is required'
+                }), 400
+                
+            if os.path.exists(hidden_path):
+                with open(hidden_path, 'r') as f:
+                    hidden = json.load(f)
+                    
+                if video_id in hidden:
+                    hidden.remove(video_id)
+                    
+                with open(hidden_path, 'w') as f:
+                    json.dump(hidden, f)
+                    
+            return jsonify({
+                'status': 'success',
+                'hidden': hidden
+            })
+            
+    except Exception as e:
+        logger.error(f"Error handling hidden videos: {str(e)}")
         return jsonify({
             'status': 'error',
             'message': str(e)

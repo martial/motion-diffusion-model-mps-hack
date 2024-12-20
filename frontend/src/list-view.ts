@@ -243,14 +243,14 @@ export class ListView extends LitElement {
   @state()
   private showFavoritesOnly = false;
 
-  connectedCallback() {
+  @state()
+  private hidden: Set<string> = new Set();
+
+  async connectedCallback() {
     super.connectedCallback();
+    await this.loadHidden();
     this.loadMotions();
-    // Load favorites from localStorage
-    const savedFavorites = localStorage.getItem('favorites');
-    if (savedFavorites) {
-      this.favorites = new Set(JSON.parse(savedFavorites));
-    }
+    await this.loadFavorites();
   }
 
   private async loadMotions() {
@@ -267,6 +267,31 @@ export class ListView extends LitElement {
       this.error = 'Failed to load motions';
     } finally {
       this.isLoading = false;
+    }
+  }
+
+  private async loadFavorites() {
+    try {
+        const response = await fetch('http://localhost:3000/api/motion/favorites');
+        const data = await response.json();
+        if (data.status === 'success') {
+            this.favorites = new Set(data.favorites);
+        }
+    } catch (e) {
+        this.error = 'Failed to load favorites';
+    }
+  }
+
+  private async loadHidden() {
+    try {
+        const response = await fetch('http://localhost:3000/api/motion/hidden');
+        const data = await response.json();
+        if (data.status === 'success') {
+            this.hidden = new Set(data.hidden);
+            this.requestUpdate();
+        }
+    } catch (e) {
+        this.error = 'Failed to load hidden videos';
     }
   }
 
@@ -313,25 +338,20 @@ export class ListView extends LitElement {
   }
 
   private filterMotions(motions: Motion[]): Motion[] {
+    if (!motions) return [];
+    
     return motions
-      .filter(motion => motion.files.data[0]?.generation_params?.prompt)
-      .filter(motion => {
-        if (this.selectedPrompt === 'all') return true;
-        const prompt = motion.files.data[0]?.generation_params?.prompt;
-        return prompt === this.selectedPrompt;
-      })
-      .map(motion => ({
-        ...motion,
-        files: {
-          ...motion.files,
-          data: motion.files.data.filter(data => {
-            if (!this.showFavoritesOnly) return true;
-            const videoId = `${motion.id}-${data.sample_id}-${data.repetition_id}`;
-            return this.favorites.has(videoId);
-          })
-        }
-      }))
-      .filter(motion => motion.files.data.length > 0);
+        .map(motion => ({
+            ...motion,
+            files: {
+                ...motion.files,
+                data: motion.files.data.filter(data => {
+                    const videoId = `${motion.id}-${data.sample_id}-${data.repetition_id}`;
+                    return !this.hidden.has(videoId);
+                })
+            }
+        }))
+        .filter(motion => motion.files.data.length > 0);
   }
 
   private async generateSMPL(motionPath: string, sampleId: number, repId: number, motionId: string) {
@@ -372,62 +392,80 @@ export class ListView extends LitElement {
     }
   }
 
-  private toggleFavorite(motionId: string, sampleId: number, repId: number) {
+  private async toggleFavorite(motionId: string, sampleId: number, repId: number) {
     const videoId = `${motionId}-${sampleId}-${repId}`;
-    if (this.favorites.has(videoId)) {
-      this.favorites.delete(videoId);
-    } else {
-      this.favorites.add(videoId);
+    try {
+        if (this.favorites.has(videoId)) {
+            // Remove from favorites
+            const response = await fetch('http://localhost:3000/api/motion/favorites', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ videoId })
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                this.favorites = new Set(data.favorites);
+            }
+        } else {
+            // Add to favorites
+            const response = await fetch('http://localhost:3000/api/motion/favorites', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ videoId })
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                this.favorites = new Set(data.favorites);
+            }
+        }
+        this.requestUpdate();
+    } catch (e) {
+        this.error = 'Failed to update favorites';
     }
-    this.saveFavorites();
-    this.requestUpdate();
   }
 
   private async removeMotion(motionId: string, sampleId: number, repId: number) {
-    if (!confirm('Are you sure you want to remove this video?')) return;
+    if (!confirm('Are you sure you want to hide this video?')) return;
     
     try {
-      const response = await fetch(`http://localhost:3000/api/motion/${motionId}/${sampleId}/${repId}`, {
-        method: 'DELETE'
-      });
-      
-      const data = await response.json();
-      if (data.status === 'success') {
-        // Remove the specific video from the motion data
-        this.motions = this.motions.map(motion => {
-          if (motion.id === motionId) {
-            return {
-              ...motion,
-              files: {
-                ...motion.files,
-                data: motion.files.data.filter(d => 
-                  !(d.sample_id === sampleId && d.repetition_id === repId)
-                )
-              }
-            };
-          }
-          return motion;
-        });
-
-        // Remove empty motions
-        this.motions = this.motions.filter(motion => motion.files.data.length > 0);
-
-        // Remove from favorites if it was favorited
         const videoId = `${motionId}-${sampleId}-${repId}`;
-        if (this.favorites.has(videoId)) {
-          this.favorites.delete(videoId);
-          this.saveFavorites();
-        }
-      } else {
-        throw new Error(data.message);
-      }
-    } catch (e) {
-      this.error = e instanceof Error ? e.message : 'Failed to remove video';
-    }
-  }
+        console.log('Attempting to hide video:', videoId);
 
-  private saveFavorites() {
-    localStorage.setItem('favorites', JSON.stringify(Array.from(this.favorites)));
+        const response = await fetch('http://localhost:3000/api/motion/hidden', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ videoId })
+        });
+        
+        const data = await response.json();
+        console.log('Server response:', data);
+
+        if (data.status === 'success') {
+            this.hidden = new Set(data.hidden);
+            this.motions = this.motions.map(motion => ({
+                ...motion,
+                files: {
+                    ...motion.files,
+                    data: motion.files.data.filter(d => {
+                        const vid = `${motion.id}-${d.sample_id}-${d.repetition_id}`;
+                        return !this.hidden.has(vid);
+                    })
+                }
+            })).filter(motion => motion.files.data.length > 0);
+            this.requestUpdate();
+        } else {
+            throw new Error(data.message);
+        }
+    } catch (e) {
+        console.error('Error hiding video:', e);
+        this.error = e instanceof Error ? e.message : 'Failed to hide video';
+    }
   }
 
   render() {
