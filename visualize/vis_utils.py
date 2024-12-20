@@ -38,7 +38,7 @@ class npy2obj:
                                      # jointstype='smpl',  # for joint locations
                                      vertstrans=True)
         self.root_loc = self.motions['motion'][:, -1, :3, :].reshape(1, 1, 3, -1)
-        self.vertices += self.root_loc
+        # self.vertices += self.root_loc
 
     def get_vertices(self, sample_i, frame_i):
         return self.vertices[sample_i, :, :, frame_i].squeeze().tolist()
@@ -71,42 +71,18 @@ class npy2obj:
         import utils.rotation_conversions as geometry
         i = range(self.real_num_frames)
         poses_raw = []
-        for idx, x in np.ndenumerate(np.array(torch.flatten(
-            geometry.matrix_to_axis_angle(
-                geometry.rotation_6d_to_matrix(
-                    torch.tensor(self.motions['motion'][0, :-1, :, i])
-                )
-            )
-        ))):
+        latest = None
+        for idx, x in np.ndenumerate(np.array(torch.flatten(geometry.matrix_to_axis_angle(geometry.rotation_6d_to_matrix(torch.tensor(self.motions['motion'][0, :-1, :, i])))))):
             poses_raw.append(x)
+            latest = x
         smpl_poses = np.array(poses_raw).reshape(self.real_num_frames, 72)
-        
-        # Get root motion data [3, num_frames]
-        root_motion = self.motions['motion'][0, -1, :3, :self.real_num_frames]
-        
-        # Convert to [num_frames, 3] for easier frame-by-frame operations
-        root_positions = root_motion.T
-        
-        # Accumulate the changes to get absolute positions
-        accumulated_positions = np.zeros_like(root_positions)
-        accumulated_positions[0] = root_positions[0]  # Start with first frame
-        
-        for frame in range(1, self.real_num_frames):
-            # Add the change from the previous position
-            accumulated_positions[frame] = accumulated_positions[frame-1] + root_positions[frame]
-        
-        # Scale the accumulated positions
-        scale_factor = 100.0
-        smpl_trans = accumulated_positions * scale_factor
-        
-        # Print debug info for verification
-        print("First few frames of accumulated positions:")
-        print(accumulated_positions[:5])
-        
-        data_dict2 = {
-            'smpl_poses': smpl_poses,
-            'smpl_trans': smpl_trans,
-        }
+        trans_raw = []
+        latest = None
+        for idx, x in np.ndenumerate(self.motions['motion'][0, -1, :3, i]):   
+            trans_raw.append(x)
+            latest = x
+        smpl_trans = np.array(trans_raw).reshape(self.real_num_frames, 3)*np.array([100, 1, 100])     
+        data_dict2 = {'smpl_poses': smpl_poses,'smpl_trans': smpl_trans,}
         import pickle
-        with open(save_path + ".pkl", 'wb') as pickle_file:
+        with open(save_path +".pkl", 'wb') as pickle_file:
             pickle.dump(data_dict2, pickle_file)

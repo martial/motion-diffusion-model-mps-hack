@@ -349,7 +349,7 @@ def export_smpl():
 
         return jsonify({
             'status': 'success',
-            'smpl_path': f'{directory}/sample{sample_num:02d}_rep{rep_num:02d}_smpl.npy'
+            'smpl_path': f'{directory}/sample{sample_num:02d}_rep{rep_num:02d}_smpl.npy.pkl'
         })
 
     except Exception as e:
