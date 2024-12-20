@@ -264,7 +264,7 @@ export class ListView extends LitElement {
   private showFavoritesOnly = false;
 
   @state()
-  private hidden: Set<string> = new Set();
+  private hiddenVideos: Set<string> = new Set();
 
   async connectedCallback() {
     super.connectedCallback();
@@ -307,7 +307,7 @@ export class ListView extends LitElement {
         const response = await fetch('http://localhost:3000/api/motion/hidden');
         const data = await response.json();
         if (data.status === 'success') {
-            this.hidden = new Set(data.hidden);
+            this.hiddenVideos = new Set(data.hidden);
             this.requestUpdate();
         }
     } catch (e) {
@@ -367,7 +367,7 @@ export class ListView extends LitElement {
                 ...motion.files,
                 data: motion.files.data.filter(data => {
                     const videoId = `${motion.id}-${data.sample_id}-${data.repetition_id}`;
-                    return !this.hidden.has(videoId);
+                    return !this.hiddenVideos.has(videoId);
                 })
             }
         }))
@@ -467,14 +467,14 @@ export class ListView extends LitElement {
         console.log('Server response:', data);
 
         if (data.status === 'success') {
-            this.hidden = new Set(data.hidden);
+            this.hiddenVideos = new Set(data.hidden);
             this.motions = this.motions.map(motion => ({
                 ...motion,
                 files: {
                     ...motion.files,
                     data: motion.files.data.filter(d => {
                         const vid = `${motion.id}-${d.sample_id}-${d.repetition_id}`;
-                        return !this.hidden.has(vid);
+                        return !this.hiddenVideos.has(vid);
                     })
                 }
             })).filter(motion => motion.files.data.length > 0);
