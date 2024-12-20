@@ -32,6 +32,8 @@ import json
 from anthropic import Anthropic
 from dotenv import load_dotenv
 import re
+import subprocess
+import platform
 
 # Load environment variables from .env file
 load_dotenv()
@@ -568,6 +570,57 @@ def handle_hidden():
             
     except Exception as e:
         logger.error(f"Error handling hidden videos: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@motion_bp.route('/open-folder', methods=['POST'])
+@cross_origin()
+def open_folder():
+    """Open the folder containing motion files in the system's file explorer"""
+    try:
+        data = request.get_json()
+        motion_id = data.get('motionId')
+        
+        if not motion_id:
+            return jsonify({
+                'status': 'error',
+                'message': 'Motion ID is required'
+            }), 400
+            
+        folder_path = os.path.join(OUTPUT_DIR, motion_id)
+        
+        if not os.path.exists(folder_path):
+            return jsonify({
+                'status': 'error',
+                'message': 'Folder not found'
+            }), 404
+            
+        # Different commands for different operating systems
+        system = platform.system()
+        try:
+            if system == 'Darwin':  # macOS
+                subprocess.run(['open', folder_path])
+            elif system == 'Windows':
+                subprocess.run(['explorer', folder_path])
+            else:  # Linux and other Unix-like
+                subprocess.run(['xdg-open', folder_path])
+                
+            return jsonify({
+                'status': 'success',
+                'message': 'Folder opened successfully'
+            })
+            
+        except subprocess.SubprocessError as e:
+            logger.error(f"Error opening folder: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': f'Failed to open folder: {str(e)}'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Error in open_folder route: {str(e)}")
         return jsonify({
             'status': 'error',
             'message': str(e)

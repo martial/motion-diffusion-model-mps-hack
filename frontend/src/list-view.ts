@@ -217,6 +217,26 @@ export class ListView extends LitElement {
       border-color: #EAB308;
       color: #EAB308;
     }
+  
+    .folder-button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      font-size: 0.875rem;
+      border: 1px solid #1E293B;
+      border-radius: 8px;
+      background-color: #0B1120;
+      color: #94A3B8;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+  
+    .folder-button:hover {
+      background-color: #151F32;
+      border-color: #2D3748;
+      color: #F8FAFC;
+    }
   `;
 
   @state()
@@ -468,6 +488,26 @@ export class ListView extends LitElement {
     }
   }
 
+  private async openFolder(motionId: string) {
+    try {
+      const response = await fetch('http://localhost:3000/api/motion/open-folder', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ motionId })
+      });
+      
+      const data = await response.json();
+      if (data.status !== 'success') {
+        throw new Error(data.message);
+      }
+    } catch (e) {
+      console.error('Error opening folder:', e);
+      this.error = e instanceof Error ? e.message : 'Failed to open folder';
+    }
+  }
+
   render() {
     if (this.isLoading) {
       return html`<div class="loading-container">Loading...</div>`;
@@ -531,6 +571,16 @@ export class ListView extends LitElement {
                         <span>Frames: ${params?.n_frames}</span>
                         <span>Guidance: ${params?.guidance_param}</span>
                         <span>Seed: ${params?.seed}</span>
+                        <button 
+                          class="folder-button"
+                          @click=${() => this.openFolder(motion.id)}
+                          title="Open containing folder"
+                        >
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                          </svg>
+                          Open Folder
+                        </button>
                       </div>
                     </div>
                     <span class="motion-timestamp">${this.formatTimestamp(motion.timestamp)}</span>
