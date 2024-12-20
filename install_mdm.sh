@@ -141,6 +141,8 @@ if [ ! -d ".venv" ]; then
     
     echo "Installing PyTorch..."
     uv pip install --no-deps torch torchvision torchaudio
+
+    uv pip install spacy
     
 
 else
