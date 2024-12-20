@@ -109,6 +109,51 @@ class MotionGenerator:
             data.dataset.t2m_dataset.fixed_length = n_frames
             
         return data
+    
+    def _sample_motion(self, num_samples, max_frames, model_kwargs, method='p_sample', 
+                      ddim_eta=0.0, plms_order=2, skip_timesteps=0, init_image=None):
+        """
+        Internal method to sample motion using different sampling methods
+        """
+        shape = (num_samples, self.model.njoints, self.model.nfeats, max_frames)
+        
+        if method == 'p_sample':
+            return self.diffusion.p_sample_loop(
+                self.model,
+                shape,
+                clip_denoised=False,
+                model_kwargs=model_kwargs,
+                skip_timesteps=skip_timesteps,
+                init_image=init_image,
+                progress=True,
+                dump_steps=None,
+                noise=None,
+                const_noise=False
+            )
+        elif method == 'ddim':
+            return self.diffusion.ddim_sample_loop(
+                self.model,
+                shape,
+                clip_denoised=False,
+                model_kwargs=model_kwargs,
+                eta=ddim_eta,
+                skip_timesteps=skip_timesteps,
+                init_image=init_image,
+                progress=True
+            )
+        elif method == 'plms':
+            return self.diffusion.plms_sample_loop(
+                self.model,
+                shape,
+                clip_denoised=False,
+                model_kwargs=model_kwargs,
+                order=plms_order,
+                skip_timesteps=skip_timesteps,
+                init_image=init_image,
+                progress=True
+            )
+        else:
+            raise ValueError(f"Unknown sampling method: {method}")
         
     def generate(self, 
                 prompt,
@@ -117,7 +162,11 @@ class MotionGenerator:
                 num_repetitions=1,
                 motion_length=6.0,
                 guidance_param=2.5,
-                seed=42):
+                seed=42,
+                fps=20,
+                sampling_method='ddim',  # Added parameter
+                ddim_eta=0.5,           # Added parameter
+                plms_order=2):          # Added parameter
         """
         Generate motion from text prompt
         
@@ -129,6 +178,10 @@ class MotionGenerator:
             motion_length (float): Motion length in seconds
             guidance_param (float): Guidance scale parameter
             seed (int): Random seed
+            fps (int): Frames per second
+            sampling_method (str): Sampling method ('p_sample', 'ddim', or 'plms')
+            ddim_eta (float): DDIM eta parameter
+            plms_order (int): PLMS order parameter
             
         Returns:
             list: List of generated file paths
@@ -144,8 +197,11 @@ class MotionGenerator:
         # Calculate frames
         max_frames = 196 if self.args.dataset in ['kit', 'humanml'] else 60
         fps = 12.5 if self.args.dataset == 'kit' else 20
+        #fps = 30
         n_frames = min(max_frames, int(motion_length * fps))
         
+        print("N_frames: ", n_frames)
+        print("motion_length: ", motion_length)
         # Update batch size if needed
         self.args.batch_size = max(num_samples, 1)
         
@@ -165,18 +221,14 @@ class MotionGenerator:
             if guidance_param != 1:
                 model_kwargs['y']['scale'] = torch.ones(num_samples, device=dist_util.dev()) * guidance_param
 
-            # Generate samples
-            sample = self.diffusion.p_sample_loop(
-                self.model,
-                (num_samples, self.model.njoints, self.model.nfeats, max_frames),
-                clip_denoised=False,
+            # Use the sampling method with parameters
+            sample = self._sample_motion(
+                num_samples=num_samples,
+                max_frames=max_frames,
                 model_kwargs=model_kwargs,
-                skip_timesteps=0,
-                init_image=None,
-                progress=True,
-                dump_steps=None,
-                noise=None,
-                const_noise=False
+                method=sampling_method,
+                ddim_eta=ddim_eta,
+                plms_order=plms_order
             )
 
             # Process generated sample
@@ -228,7 +280,9 @@ class MotionGenerator:
                     'fps': fps,
                     'n_frames': n_frames,
                     'dataset': self.args.dataset,
-                    # Add any other parameters you want to track
+                    'sampling_method': sampling_method,
+                    'ddim_eta': ddim_eta,
+                    'plms_order': plms_order
                 }
                 with open(params_path, 'w') as f:
                     json.dump(generation_params, f, indent=4)

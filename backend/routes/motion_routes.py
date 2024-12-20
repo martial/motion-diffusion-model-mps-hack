@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, send_from_directory
+from flask import Blueprint, request, jsonify, send_from_directory, send_file
 import os
 import logging
 import shutil
@@ -34,6 +34,8 @@ from dotenv import load_dotenv
 import re
 import subprocess
 import platform
+import zipfile
+from io import BytesIO
 
 # Load environment variables from .env file
 load_dotenv()
@@ -51,7 +53,10 @@ DEFAULT_PARAMS = {
     "fps": 20,
     "temperature": 1.0,
     "seed": 42,
-    "output_format": ["mp4"]
+    "output_format": ["mp4"],
+    "sampling_method": "ddim",
+    "ddim_eta": 0.5,
+    "plms_order": 2
 }
 
 import sys
@@ -78,6 +83,10 @@ def generate_motion():
         motion_length = data.get('motion_length', DEFAULT_PARAMS['motion_length'])
         guidance_param = data.get('guidance_param', DEFAULT_PARAMS['guidance_param'])
         seed = data.get('seed', DEFAULT_PARAMS['seed'])
+        fps = data.get('fps', DEFAULT_PARAMS['fps'])
+        sampling_method = data.get('sampling_method', DEFAULT_PARAMS['sampling_method'])
+        ddim_eta = data.get('ddim_eta', DEFAULT_PARAMS['ddim_eta'])
+        plms_order = data.get('plms_order', DEFAULT_PARAMS['plms_order'])
         
         # Initialize generator if not already done
         #if motion_bp.motion_service is None:
@@ -91,7 +100,11 @@ def generate_motion():
             num_repetitions=num_repetitions,
             motion_length=motion_length,
             guidance_param=guidance_param,
-            seed=seed
+            seed=seed,
+            fps=fps,
+            sampling_method=sampling_method,
+            ddim_eta=ddim_eta,
+            plms_order=plms_order
         )
         
         
@@ -121,7 +134,10 @@ def generate_motion():
                 'num_repetitions': num_repetitions,
                 'motion_length': motion_length,
                 'guidance_param': guidance_param,
-                'seed': seed
+                'seed': seed,
+                'sampling_method': sampling_method,
+                'ddim_eta': ddim_eta,
+                'plms_order': plms_order
             }
         })
 
@@ -621,6 +637,126 @@ def open_folder():
             
     except Exception as e:
         logger.error(f"Error in open_folder route: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@motion_bp.route('/hidden/bulk', methods=['POST'])
+@cross_origin()
+def handle_hidden_bulk():
+    """Handle bulk hiding of motions"""
+    try:
+        data = request.get_json()
+        video_ids = data.get('videoIds', [])
+        
+        if not video_ids or not isinstance(video_ids, list):
+            return jsonify({
+                'status': 'error',
+                'message': 'Video IDs array is required'
+            }), 400
+            
+        hidden_path = os.path.join(OUTPUT_DIR, 'hidden.json')
+        
+        # Load existing hidden videos
+        hidden = []
+        if os.path.exists(hidden_path):
+            with open(hidden_path, 'r') as f:
+                hidden = json.load(f)
+                
+        # Add new videos to hidden list
+        hidden.extend([vid for vid in video_ids if vid not in hidden])
+                
+        # Save updated hidden list
+        with open(hidden_path, 'w') as f:
+            json.dump(hidden, f)
+            
+        return jsonify({
+            'status': 'success',
+            'hidden': hidden
+        })
+            
+    except Exception as e:
+        logger.error(f"Error handling bulk hidden videos: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@motion_bp.route('/favorites/download', methods=['GET'])
+@cross_origin()
+def download_favorites():
+    """Download all favorite motions as a zip file"""
+    try:
+        # Get favorites list
+        favorites_path = os.path.join(OUTPUT_DIR, 'favorites.json')
+        if not os.path.exists(favorites_path):
+            return jsonify({
+                'status': 'error',
+                'message': 'No favorites found'
+            }), 404
+
+        with open(favorites_path, 'r') as f:
+            favorites = json.load(f)
+
+        # Get hidden videos list
+        hidden_path = os.path.join(OUTPUT_DIR, 'hidden.json')
+        hidden_videos = set()
+        if os.path.exists(hidden_path):
+            with open(hidden_path, 'r') as f:
+                hidden_videos = set(json.load(f))
+
+        # Filter out hidden videos from favorites
+        favorites = [f for f in favorites if f not in hidden_videos]
+
+        if not favorites:
+            return jsonify({
+                'status': 'error',
+                'message': 'No visible favorites found'
+            }), 404
+
+        # Create a BytesIO object to store the zip file
+        memory_file = BytesIO()
+        
+        # Create the zip file
+        with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # For each favorite
+            for favorite in favorites:
+                # Parse the video ID to get motion_id, sample_id, and rep_id
+                motion_id, sample_id, rep_id = favorite.split('-')
+                base_path = os.path.join(OUTPUT_DIR, motion_id)
+                
+                if os.path.exists(base_path):
+                    # Try both naming formats
+                    file_patterns = [
+                        # Format with leading zeros
+                        f'sample{int(sample_id):02d}_rep{int(rep_id):02d}',
+                        # Format without leading zeros
+                        f'sample{int(sample_id)}_rep{int(rep_id)}'
+                    ]
+                    
+                    # Find all files in the directory
+                    for file in os.listdir(base_path):
+                        # Check if file matches either pattern
+                        for pattern in file_patterns:
+                            if file.startswith(pattern):
+                                file_path = os.path.join(base_path, file)
+                                arc_name = os.path.join(motion_id, file)
+                                zf.write(file_path, arc_name)
+                                break
+
+        # Seek to the beginning of the BytesIO object
+        memory_file.seek(0)
+        
+        return send_file(
+            memory_file,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name='favorite_motions.zip'
+        )
+
+    except Exception as e:
+        logger.error(f"Error downloading favorites: {str(e)}")
         return jsonify({
             'status': 'error',
             'message': str(e)

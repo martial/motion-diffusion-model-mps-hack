@@ -19,10 +19,21 @@ export class GenerateView extends LitElement {
   static styles = css`
     ${unsafeCSS(styles)}
     
+    .content-wrapper {
+      display: grid;
+      grid-template-columns: 600px 1fr;
+      gap: 24px;
+      height: 100%;
+      position: relative;
+      overflow: visible;
+    }
+
     .left-column {
       max-height: 100vh;
       overflow-y: auto;
       padding-right: 16px;
+      position: relative;
+      overflow-x: visible;
     }
 
     .prompt-inputs {
@@ -197,6 +208,93 @@ export class GenerateView extends LitElement {
       opacity: 0.6;
       cursor: not-allowed;
     }
+
+    /* Tooltip container */
+    .tooltip-container {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+      overflow: visible;
+    }
+
+    /* Tooltip text */
+    .tooltip {
+      visibility: hidden;
+      background-color: rgba(30, 30, 30, 0.95);
+      color: #fff;
+      text-align: left;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.3;
+      width: 200px;
+      pointer-events: none;
+      
+      /* Updated positioning */
+      position: fixed;
+      z-index: 9999;
+      margin-left: 10px;
+      
+      /* Fade in */
+      opacity: 0;
+      transition: opacity 0.2s;
+      
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .tooltip-title {
+      font-weight: bold;
+      margin-bottom: 4px;
+      color: #63a3ff;
+      font-size: 12px;
+    }
+
+    .tooltip-description {
+      margin-bottom: 4px;
+      font-size: 11px;
+    }
+
+    .tooltip-values {
+      padding-left: 8px;
+      margin: 4px 0;
+    }
+
+    .tooltip-values li {
+      margin: 2px 0;
+      font-size: 11px;
+    }
+
+    .tooltip-tip {
+      margin-top: 4px;
+      font-style: italic;
+      color: #8e9dbb;
+      font-size: 11px;
+    }
+
+    /* Tooltip arrow pointing left */
+    .tooltip::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: 100%;
+      transform: translateY(-50%);
+      border-width: 6px;
+      border-style: solid;
+      border-color: transparent rgba(30, 30, 30, 0.95) transparent transparent;
+    }
+
+    /* Show tooltip on hover */
+    .tooltip-container:hover .tooltip {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    /* Info icon */
+    .info-icon {
+      margin-left: 4px;
+      color: #666;
+      font-size: 14px;
+    }
   `;
 
   // State declarations
@@ -226,6 +324,9 @@ export class GenerateView extends LitElement {
   @state()
   private generatingSMPL: Record<string, boolean> = {};
 
+  @state()
+  private currentSamplingMethod: string = 'ddim';
+
   // Form handling methods
   private async handleSubmit(e: Event) {
     e.preventDefault();
@@ -242,6 +343,9 @@ export class GenerateView extends LitElement {
         num_repetitions: 1,
         motion_length: parseFloat(formData.get('motion_length') as string),
         guidance_param: parseFloat(formData.get('guidance_param') as string),
+        sampling_method: formData.get('sampling_method'),
+        ddim_eta: parseFloat(formData.get('ddim_eta') as string),
+        plms_order: parseInt(formData.get('plms_order') as string),
       };
 
       const response = await fetch('http://localhost:3000/api/motion/generate', {
@@ -423,6 +527,12 @@ export class GenerateView extends LitElement {
     } finally {
       this.generatingSMPL = { ...this.generatingSMPL, [key]: false };
     }
+  }
+
+  // Add handler for sampling method change
+  private handleSamplingMethodChange(e: Event) {
+    const select = e.target as HTMLSelectElement;
+    this.currentSamplingMethod = select.value;
   }
 
   // Result rendering methods
@@ -680,13 +790,93 @@ export class GenerateView extends LitElement {
 
             <div class="form-group">
               <label class="label">Motion Length (seconds)</label>
-              <input type="number" name="motion_length" class="select" min="1" max="15.68" step="0.5" value="6.0" />
+              <input 
+                type="number" 
+                name="motion_length" 
+                class="select" 
+                min="1" 
+                step="0.5" 
+                value="6.0"
+              />
             </div>
 
             <div class="form-group">
               <label class="label">Guidance Parameter</label>
               <input type="number" name="guidance_param" class="select" min="1" max="10" step="0.1" value="2.5" />
             </div>
+
+            <div class="form-group">
+              <label class="label">Sampling Method</label>
+              <div class="tooltip-container" @mouseover=${this.positionTooltip}>
+                <select 
+                  name="sampling_method" 
+                  class="select"
+                  @change=${this.handleSamplingMethodChange}
+                  value=${this.currentSamplingMethod}
+                >
+                  <option value="p_sample">p_sample</option>
+                  <option value="ddim" selected>ddim</option>
+                  <option value="plms">plms</option>
+                </select>
+                <div class="tooltip">
+                  <div class="tooltip-title">Generation Method</div>
+                  <ul class="tooltip-values">
+                    <li><strong>ddim</strong>: Fast, high quality (recommended)</li>
+                    <li><strong>plms</strong>: Smoother, slower</li>
+                    <li><strong>p_sample</strong>: Most reliable</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            ${this.currentSamplingMethod === 'ddim' ? html`
+              <div class="form-group">
+                <label class="label">DDIM Eta</label>
+                <div class="tooltip-container" @mouseover=${this.positionTooltip}>
+                  <input 
+                    type="number" 
+                    name="ddim_eta" 
+                    class="select" 
+                    min="0" 
+                    max="1" 
+                    step="0.1" 
+                    value="0.5"
+                  />
+                  <div class="tooltip">
+                    <div class="tooltip-title">Randomness Control</div>
+                    <ul class="tooltip-values">
+                      <li><strong>0.0</strong>: Consistent results</li>
+                      <li><strong>0.5</strong>: Balanced (recommended)</li>
+                      <li><strong>1.0</strong>: Maximum variety</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            ` : ''}
+
+            ${this.currentSamplingMethod === 'plms' ? html`
+              <div class="form-group">
+                <label class="label">PLMS Order</label>
+                <div class="tooltip-container" @mouseover=${this.positionTooltip}>
+                  <input 
+                    type="number" 
+                    name="plms_order" 
+                    class="select" 
+                    min="1" 
+                    max="4" 
+                    value="2"
+                  />
+                  <div class="tooltip">
+                    <div class="tooltip-title">Quality Level</div>
+                    <ul class="tooltip-values">
+                      <li><strong>1</strong>: Basic, fast</li>
+                      <li><strong>2</strong>: Balanced (recommended)</li>
+                      <li><strong>3-4</strong>: Highest quality</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            ` : ''}
           </div>
         </form>
 
@@ -706,5 +896,15 @@ export class GenerateView extends LitElement {
   private handleFocus(e: FocusEvent) {
     const textarea = e.target as HTMLTextAreaElement;
     this.lastFocusedInput = textarea.name === 'prompt' ? 'direct' : 'ai';
+  }
+
+  // Add method to handle tooltip positioning
+  private positionTooltip(e: MouseEvent) {
+    const tooltip = (e.currentTarget as HTMLElement).querySelector('.tooltip') as HTMLElement;
+    if (tooltip) {
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      tooltip.style.top = `${rect.top}px`;
+      tooltip.style.left = `${rect.right + 10}px`;
+    }
   }
 }

@@ -237,6 +237,99 @@ export class ListView extends LitElement {
       border-color: #2D3748;
       color: #F8FAFC;
     }
+  
+    .generation-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      gap: 16px;
+    }
+  
+    .generation-info {
+      flex: 1;
+    }
+  
+    .header-buttons {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 40px;
+    }
+  
+    .generation-params {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-top: 8px;
+    }
+  
+    .param-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 12px;
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 6px;
+      font-size: 0.875rem;
+    }
+  
+    .samples-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding: 16px;
+    }
+  
+    .video-container {
+      width: 480px;
+    }
+  
+    .video-preview {
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+    }
+  
+    .header-buttons {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 40px;
+    }
+  
+    .folder-button, .remove-all-button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      font-size: 0.875rem;
+      border: 1px solid #1E293B;
+      border-radius: 8px;
+      background-color: #0B1120;
+      color: #94A3B8;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-width: 120px;  // Ensure consistent minimum width
+      justify-content: center;
+    }
+  
+    .folder-button:hover {
+      background-color: #151F32;
+      border-color: #2D3748;
+      color: #F8FAFC;
+    }
+  
+    .remove-all-button {
+      background-color: #1F2937;
+    }
+  
+    .remove-all-button:hover {
+      background-color: #991B1B;
+      border-color: #DC2626;
+      color: #F8FAFC;
+    }
   `;
 
   @state()
@@ -365,12 +458,14 @@ export class ListView extends LitElement {
             ...motion,
             files: {
                 ...motion.files,
-                data: motion.files.data.filter(data => {
-                    const videoId = `${motion.id}-${data.sample_id}-${data.repetition_id}`;
-                    if (this.hiddenVideos.has(videoId)) return false;
-                    if (this.showFavoritesOnly && !this.favorites.has(videoId)) return false;
-                    return true;
-                })
+                data: motion.files.data
+                    .filter(data => {
+                        const videoId = `${motion.id}-${data.sample_id}-${data.repetition_id}`;
+                        if (this.hiddenVideos.has(videoId)) return false;
+                        if (this.showFavoritesOnly && !this.favorites.has(videoId)) return false;
+                        return true;
+                    })
+                    .sort((a, b) => a.sample_id - b.sample_id)
             }
         }))
         .filter(motion => motion.files.data.length > 0);
@@ -510,6 +605,64 @@ export class ListView extends LitElement {
     }
   }
 
+  private async removeAllForPrompt(prompt: string) {
+    if (!confirm(`Are you sure you want to hide all videos with the prompt: "${prompt}"?`)) return;
+    
+    try {
+      // Collect all video IDs for the given prompt
+      const videoIds = this.motions
+        .filter(motion => motion.files.data[0]?.generation_params?.prompt === prompt)
+        .flatMap(motion => 
+          motion.files.data.map(data => `${motion.id}-${data.sample_id}-${data.repetition_id}`)
+        );
+
+      const response = await fetch('http://localhost:3000/api/motion/hidden/bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ videoIds })
+      });
+      
+      const data = await response.json();
+      if (data.status === 'success') {
+        this.hiddenVideos = new Set(data.hidden);
+        this.requestUpdate();
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (e) {
+      console.error('Error hiding videos:', e);
+      this.error = e instanceof Error ? e.message : 'Failed to hide videos';
+    }
+  }
+
+  private async downloadFavorites() {
+    try {
+      const response = await fetch('http://localhost:3000/api/motion/favorites/download');
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to download favorites');
+      }
+      
+      // Create a blob from the response
+      const blob = await response.blob();
+      
+      // Create a temporary link and trigger download
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'favorite_motions.zip';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : 'Failed to download favorites';
+    }
+  }
+
   render() {
     if (this.isLoading) {
       return html`<div class="loading-container">Loading...</div>`;
@@ -554,6 +707,16 @@ export class ListView extends LitElement {
           </svg>
           Favorites Only
         </button>
+
+        <button 
+          class="filter-button"
+          @click=${() => this.downloadFavorites()}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          Download Favorites
+        </button>
       </div>
 
       <div class="generations-list">
@@ -566,27 +729,41 @@ export class ListView extends LitElement {
                 <div class="generation-container">
                   <div class="generation-header">
                     <div class="generation-info">
-                      <div class="generation-prompt">${params?.prompt || 'No prompt'}</div>
+                      <div class="generation-prompt">
+                        ${params?.prompt || 'No prompt'}
+                      </div>
                       <div class="generation-params">
-                        <span>Length: ${params?.motion_length}s</span>
-                        <span>FPS: ${params?.fps}</span>
-                        <span>Frames: ${params?.n_frames}</span>
-                        <span>Guidance: ${params?.guidance_param}</span>
-                        <span>Seed: ${params?.seed}</span>
-                        <button 
-                          class="folder-button"
-                          @click=${() => this.openFolder(motion.id)}
-                          title="Open containing folder"
-                        >
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
-                          </svg>
-                          Open Folder
-                        </button>
+                        <span class="param-group">Length: ${params?.motion_length}s</span>
+                        <span class="param-group">FPS: ${params?.fps}</span>
+                        <span class="param-group">Frames: ${params?.n_frames}</span>
+                        <span class="param-group">Guidance: ${params?.guidance_param}</span>
+                        <span class="param-group">Seed: ${params?.seed}</span>
                       </div>
                     </div>
-                    <span class="motion-timestamp">${this.formatTimestamp(motion.timestamp)}</span>
+                    <div class="header-buttons">
+                      <button 
+                        class="folder-button"
+                        @click=${() => this.openFolder(motion.id)}
+                        title="Open containing folder"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                        </svg>
+                        Open Folder
+                      </button>
+                      <button 
+                        class="remove-all-button"
+                        @click=${() => this.removeAllForPrompt(params?.prompt)}
+                        title="Remove all videos with this prompt"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                        Remove All
+                      </button>
+                    </div>
                   </div>
+                  <span class="motion-timestamp">${this.formatTimestamp(motion.timestamp)}</span>
                   <div class="samples-grid">
                     ${motion.files.data.map(data => {
                       const videoId = `${motion.id}-${data.sample_id}-${data.repetition_id}`;
